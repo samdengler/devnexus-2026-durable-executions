@@ -9,6 +9,7 @@
   },
   "dependencies": {
     "@slidev/cli": "^0.50.0",
-    "@slidev/theme-default": "latest"
+    "@slidev/theme-default": "latest",
+    "@vueuse/core": "^14.2.0"
   }
 }

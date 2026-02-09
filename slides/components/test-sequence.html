@@ -1,0 +1,429 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SequenceStepper Test</title>
+  <script src="https://unpkg.com/vue@3/dist/vue.global.js"></script>
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background: #1a1a1a;
+      color: #e2e8f0;
+      font-family: system-ui, -apple-system, sans-serif;
+    }
+    .container {
+      width: 100%;
+      margin: 0;
+      padding: 20px 10px;
+    }
+    h1 {
+      color: #fff;
+      margin-bottom: 20px;
+    }
+    .controls {
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #2a2a2a;
+      border-radius: 8px;
+    }
+    button {
+      padding: 8px 16px;
+      margin-right: 10px;
+      background: #3b82f6;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 14px;
+    }
+    button:hover {
+      background: #2563eb;
+    }
+    .info {
+      margin-top: 10px;
+      font-size: 14px;
+      color: #94a3b8;
+    }
+    .sequence-stepper-wrapper {
+      width: 100%;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    .seq-progress {
+      width: 80%;
+      max-width: 600px;
+      height: 2px;
+      background: #1e293b;
+      border-radius: 1px;
+      margin-top: 12px;
+      overflow: hidden;
+    }
+    .seq-progress-bar {
+      height: 100%;
+      background: linear-gradient(90deg, #38bdf8, #a78bfa);
+      transition: width 0.3s ease;
+    }
+    .seq-counter {
+      margin-top: 6px;
+      font-size: 12px;
+      color: #64748b;
+      font-family: 'JetBrains Mono', 'Fira Code', monospace;
+    }
+  </style>
+</head>
+<body>
+  <div id="app" class="container">
+    <h1>SequenceStepper Test</h1>
+
+    <div class="controls">
+      <button @click="prevStep">← Previous</button>
+      <button @click="nextStep">Next →</button>
+      <button @click="reset">Reset</button>
+      <div class="info">
+        Step {{ currentStep }} / {{ steps.length }}
+      </div>
+    </div>
+
+    <sequence-stepper
+      :actors="actors"
+      :steps="steps"
+      :visible-steps="currentStep"
+    />
+  </div>
+
+  <script>
+    const { createApp, ref, computed } = Vue;
+
+    const SequenceStepper = {
+      name: 'SequenceStepper',
+      props: {
+        actors: {
+          type: Array,
+          required: true
+        },
+        steps: {
+          type: Array,
+          required: true
+        },
+        visibleSteps: {
+          type: Number,
+          default: 0
+        },
+        theme: {
+          type: Object,
+          default: () => ({})
+        }
+      },
+      setup(props) {
+        // Layout constants
+        const ACTOR_WIDTH = 140;
+        const ACTOR_GAP = 200;
+        const HEADER_HEIGHT = 60;
+        const STEP_HEIGHT = 45;
+        const PADDING_X = 60;
+        const SELF_LOOP_WIDTH = 30;
+
+        // Theme
+        const defaultColors = {
+          bg: '#0a0e17',
+          lifeline: '#1e293b',
+          actorBg: '#0f172a',
+          actorBorder: '#334155',
+          actorText: '#e2e8f0',
+          request: '#38bdf8',
+          response: '#a78bfa',
+          self: '#fbbf24',
+          stepNum: '#0ea5e9'
+        };
+
+        const colors = computed(() => ({ ...defaultColors, ...props.theme }));
+
+        const actorIndexMap = computed(() => {
+          const map = {};
+          props.actors.forEach((a, i) => (map[a.id] = i));
+          return map;
+        });
+
+        const svgWidth = computed(() => {
+          const actorSpacing = (props.actors.length - 1) * ACTOR_GAP;
+          const baseWidth = PADDING_X + ACTOR_WIDTH / 2 + actorSpacing + ACTOR_WIDTH / 2 + PADDING_X;
+          const hasSelfLoops = props.steps.some(s => s.type === 'self');
+          const selfLoopPadding = hasSelfLoops ? 180 : 0;
+          return baseWidth + selfLoopPadding;
+        });
+
+        const svgHeight = computed(() =>
+          HEADER_HEIGHT + props.steps.length * STEP_HEIGHT + 40
+        );
+
+        function getActorX(index) {
+          const startX = PADDING_X + ACTOR_WIDTH / 2;
+          return startX + index * ACTOR_GAP;
+        }
+
+        function getStepY(index) {
+          return HEADER_HEIGHT + 15 + index * STEP_HEIGHT + STEP_HEIGHT / 2;
+        }
+
+        function getStepColor(type) {
+          if (type === 'response') return colors.value.response;
+          if (type === 'self') return colors.value.self;
+          return colors.value.request;
+        }
+
+        const renderedSteps = computed(() =>
+          props.steps.map((step, i) => {
+            const fromIdx = actorIndexMap.value[step.from];
+            const toIdx = actorIndexMap.value[step.to];
+            const y = getStepY(i);
+            const color = getStepColor(step.type);
+            const isVisible = i < props.visibleSteps;
+            const isLatest = i === props.visibleSteps - 1;
+            const opacity = isLatest ? 1 : 0.55;
+            const isSelf = step.type === 'self';
+            const isDashed = step.type === 'response';
+
+            const x1 = getActorX(fromIdx);
+            const x2 = getActorX(toIdx);
+            const direction = x2 > x1 ? 'right' : 'left';
+            const midX = (x1 + x2) / 2;
+
+            const arrowSize = 8;
+            const dx = direction === 'right' ? -arrowSize : arrowSize;
+            const arrowPoints = `${x2},${y} ${x2 + dx},${y - arrowSize / 2} ${x2 + dx},${y + arrowSize / 2}`;
+
+            const loopTop = y - 12;
+            const loopBot = y + 12;
+            const loopRight = x1 + SELF_LOOP_WIDTH;
+            const selfPath = `M ${x1} ${loopTop} H ${loopRight} V ${loopBot} H ${x1}`;
+            const selfArrowPoints = `${x1},${loopBot} ${x1 + arrowSize},${loopBot - arrowSize / 2} ${x1 + arrowSize},${loopBot + arrowSize / 2}`;
+
+            const labelWidth = step.label.length * 8 + 20;
+            const labelX = isSelf ? loopRight + 6 : midX - labelWidth / 2;
+            const labelTextX = isSelf ? loopRight + 14 : midX;
+            const labelTextAnchor = isSelf ? 'start' : 'middle';
+            const labelRectY = isSelf ? y - 11 : y - 22;
+            const labelRectH = isSelf ? 22 : 20;
+            const labelTextY = isSelf ? y + 4 : y - 9;
+
+            const numX = isSelf ? x1 - 20 : Math.min(x1, x2) - 18;
+
+            return {
+              ...step,
+              index: i,
+              y, color, isVisible, isLatest, opacity, isSelf, isDashed,
+              x1, x2, direction, midX, arrowPoints, selfPath, selfArrowPoints,
+              loopRight, labelWidth, labelX, labelTextX, labelTextAnchor,
+              labelRectY, labelRectH, labelTextY, numX
+            };
+          })
+        );
+
+        return {
+          colors,
+          svgWidth,
+          svgHeight,
+          getActorX,
+          renderedSteps,
+          ACTOR_WIDTH,
+          HEADER_HEIGHT
+        };
+      },
+      template: `
+        <div class="sequence-stepper-wrapper">
+          <svg
+            :viewBox="'0 0 ' + svgWidth + ' ' + svgHeight"
+            preserveAspectRatio="xMidYMid meet"
+            :style="{
+              width: '100%',
+              height: 'auto',
+              display: 'block',
+              background: colors.bg
+            }"
+          >
+            <defs>
+              <filter id="seq-glow">
+                <feGaussianBlur stdDeviation="3" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+            </defs>
+
+            <line
+              v-for="(actor, i) in actors"
+              :key="'lifeline-' + actor.id"
+              :x1="getActorX(i)"
+              :y1="HEADER_HEIGHT + 10"
+              :x2="getActorX(i)"
+              :y2="svgHeight - 20"
+              :stroke="colors.lifeline"
+              stroke-width="1.5"
+              stroke-dasharray="6 4"
+            />
+
+            <g v-for="(actor, i) in actors" :key="'actor-' + actor.id">
+              <rect
+                :x="getActorX(i) - ACTOR_WIDTH / 2"
+                :y="18"
+                :width="ACTOR_WIDTH"
+                :height="44"
+                :rx="6"
+                :fill="colors.actorBg"
+                :stroke="colors.actorBorder"
+                stroke-width="1.5"
+              />
+              <text
+                :x="getActorX(i)"
+                :y="45"
+                text-anchor="middle"
+                :fill="colors.actorText"
+                font-size="14"
+                font-weight="600"
+                font-family="'JetBrains Mono', 'Fira Code', 'SF Mono', monospace"
+              >
+                {{ actor.label }}
+              </text>
+            </g>
+
+            <g
+              v-for="s in renderedSteps"
+              :key="'step-' + s.index"
+              v-show="s.isVisible"
+              :opacity="s.opacity"
+              :style="{ transition: 'opacity 0.3s ease' }"
+            >
+              <template v-if="s.isSelf">
+                <path
+                  :d="s.selfPath"
+                  fill="none"
+                  :stroke="s.color"
+                  stroke-width="2"
+                  :filter="s.isLatest ? 'url(#seq-glow)' : undefined"
+                />
+                <polygon :points="s.selfArrowPoints" :fill="s.color" />
+              </template>
+
+              <template v-else>
+                <line
+                  :x1="s.x1"
+                  :y1="s.y"
+                  :x2="s.x2 + (s.direction === 'right' ? -1 : 1)"
+                  :y2="s.y"
+                  :stroke="s.color"
+                  stroke-width="2"
+                  :stroke-dasharray="s.isDashed ? '8 4' : undefined"
+                  :filter="s.isLatest ? 'url(#seq-glow)' : undefined"
+                />
+                <polygon :points="s.arrowPoints" :fill="s.color" />
+              </template>
+
+              <rect
+                :x="s.labelX"
+                :y="s.labelRectY"
+                :width="s.labelWidth"
+                :height="s.labelRectH"
+                rx="4"
+                :fill="colors.bg"
+                fill-opacity="0.9"
+              />
+
+              <text
+                :x="s.labelTextX"
+                :y="s.labelTextY"
+                :text-anchor="s.labelTextAnchor"
+                :fill="s.color"
+                font-size="12"
+                font-family="'JetBrains Mono', 'Fira Code', monospace"
+                font-weight="500"
+              >
+                {{ s.label }}
+              </text>
+
+              <text
+                :x="s.numX"
+                :y="s.y + 4"
+                :fill="colors.stepNum"
+                font-size="10"
+                font-family="'JetBrains Mono', monospace"
+                font-weight="700"
+                text-anchor="end"
+                opacity="0.7"
+              >
+                {{ s.index + 1 }}
+              </text>
+            </g>
+          </svg>
+
+          <div class="seq-progress">
+            <div
+              class="seq-progress-bar"
+              :style="{
+                width: (steps.length > 0 ? (Math.min(visibleSteps, steps.length) / steps.length) * 100 : 0) + '%'
+              }"
+            />
+          </div>
+          <div class="seq-counter">
+            {{ Math.min(visibleSteps, steps.length) }} / {{ steps.length }}
+          </div>
+        </div>
+      `
+    };
+
+    createApp({
+      components: {
+        SequenceStepper
+      },
+      setup() {
+        const currentStep = ref(0);
+
+        const actors = [
+          { id: 'client', label: 'Client' },
+          { id: 'server', label: 'Restate Server' },
+          { id: 'sdk', label: 'SDK' },
+          { id: 'handler', label: 'Handler' }
+        ];
+
+        const steps = [
+          { from: 'client', to: 'server', label: 'POST /Greeter/greet', type: 'request' },
+          { from: 'server', to: 'sdk', label: 'invoke()', type: 'request' },
+          { from: 'sdk', to: 'handler', label: 'ctx.rand.uuidv4()', type: 'request' },
+          { from: 'handler', to: 'handler', label: 'sendNotification() 💾', type: 'self' },
+          { from: 'handler', to: 'handler', label: 'ctx.sleep(1s) 💾', type: 'self' },
+          { from: 'handler', to: 'handler', label: 'sendReminder() 💾', type: 'self' },
+          { from: 'handler', to: 'client', label: '200 OK', type: 'response' }
+        ];
+
+        function nextStep() {
+          if (currentStep.value < steps.length) {
+            currentStep.value++;
+          }
+        }
+
+        function prevStep() {
+          if (currentStep.value > 0) {
+            currentStep.value--;
+          }
+        }
+
+        function reset() {
+          currentStep.value = 0;
+        }
+
+        return {
+          actors,
+          steps,
+          currentStep,
+          nextStep,
+          prevStep,
+          reset
+        };
+      }
+    }).mount('#app');
+  </script>
+</body>
+</html>
