@@ -305,30 +305,29 @@ Every `ctx.run()` is replicated before your code moves on
 </div>
 
 ---
+clicks: 6
+---
 
 # How Are Journal Entries Kept Safe?
 
 Your handler talks to a **leader node**, which replicates to the cluster
 
-```mermaid
-sequenceDiagram
-    participant H as Your Handler
-    participant L as Leader Node
-    participant R1 as Replica 1
-    participant R2 as Replica 2
-
-    H->>L: ctx.run() result
-    L->>R1: Replicate journal entry
-    L->>R2: Replicate journal entry
-    R1-->>L: ACK
-    R2-->>L: ACK
-    Note over L: Majority confirmed (2 of 3)
-    L-->>H: OK — your code continues
-```
-
-- One leader per partition — your handler always talks to it directly
-- Leader fans out to replicas and waits for a **majority** to confirm
-- Simple quorum replication — one round trip, no complex protocol
+<InteractiveSequence
+  :actors="[
+    { id: 'handler', label: 'Your Handler' },
+    { id: 'leader', label: 'Leader Node' },
+    { id: 'r1', label: 'Replica 1' },
+    { id: 'r2', label: 'Replica 2' },
+  ]"
+  :steps="[
+    { from: 'handler', to: 'leader', label: 'ctx.run() result', type: 'request' },
+    { from: 'leader', to: 'r1', label: 'Replicate journal entry', type: 'request' },
+    { from: 'leader', to: 'r2', label: 'Replicate journal entry', type: 'request' },
+    { from: 'r1', to: 'leader', label: 'ACK', type: 'response' },
+    { from: 'r2', to: 'leader', label: 'ACK', type: 'response' },
+    { from: 'leader', to: 'handler', label: 'OK — your code continues', type: 'response' },
+  ]"
+/>
 
 ---
 
@@ -344,30 +343,29 @@ Restate detects failures and recovers automatically
 Your handler code **doesn't change**. Restate handles detection, promotion, and replay behind the scenes.
 
 ---
+clicks: 6
+---
 
 # What Happens When a Node Crashes?
 
 The failover in action
 
-```mermaid
-sequenceDiagram
-    participant App as Your Handler
-    participant N1 as Node 1 (Leader)
-    participant N2 as Node 2
-    participant N3 as Node 3
-
-    App->>N1: ctx.run() — step 3
-    Note over N1: 💥 Node 1 crashes!
-    N2->>N2: Detects failure
-    N2->>N2: Becomes new leader
-    N2->>App: Replays journal — skips steps 1-2
-    App->>N2: Re-executes step 3
-    Note over N2: Business as usual
-```
-
-- The new leader already has your data — it was replicating all along
-- Completed steps are **skipped**, only the in-flight step re-executes
-- Failover happens in **seconds**, not minutes
+<InteractiveSequence
+  :actors="[
+    { id: 'app', label: 'Your Handler' },
+    { id: 'n1', label: 'Node 1 (Leader)' },
+    { id: 'n2', label: 'Node 2' },
+    { id: 'n3', label: 'Node 3' },
+  ]"
+  :steps="[
+    { from: 'app', to: 'n1', label: 'ctx.run() — step 3', type: 'request' },
+    { from: 'n1', to: 'n1', label: 'Node 1 crashes!', type: 'self' },
+    { from: 'n2', to: 'n2', label: 'Detects failure', type: 'self' },
+    { from: 'n2', to: 'n2', label: 'Becomes new leader', type: 'self' },
+    { from: 'n2', to: 'app', label: 'Replays journal — skips steps 1-2', type: 'response' },
+    { from: 'app', to: 'n2', label: 'Re-executes step 3', type: 'request' },
+  ]"
+/>
 
 ---
 
