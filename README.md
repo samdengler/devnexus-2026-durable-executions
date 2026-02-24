@@ -4,11 +4,11 @@
 
 Building distributed applications is hard, with challenges like retries, state management, and failure recovery often adding hidden complexity. Durable execution frameworks address these problems by persisting execution and resuming seamlessly after crashes, so developers can focus on business logic instead of plumbing. In this session, you'll see practical code examples and a live demo of how durable execution simplifies microservice orchestration and long-running operations, making resilient apps accessible to every developer.
 
-[View the talk on DevNexus](https://devnexus.com/events/durable-execution-building-apps-that-refuse-to-die)
+[View the talk on DevNexus](https://devnexus.com/events/durable-execution-building-apps-that-refuse-to-die) | [View the slides](https://samdengler.github.io/devnexus-2026-durable-executions/)
 
 ## Slides
 
-The slide deck is built with [Slidev](https://sli.dev/) and located in the `slides/` directory.
+The slide deck is built with [Slidev](https://sli.dev/) and hosted on [GitHub Pages](https://samdengler.github.io/devnexus-2026-durable-executions/). The source is in the `slides/` directory.
 
 ```bash
 cd slides
