@@ -1,6 +1,6 @@
 <script setup>
 /**
- * MinimalSequence — SVG sequence diagram for Slidev with:
+ * InteractiveSequence — SVG sequence diagram for Slidev with:
  *   - Click-through via useSlideContext $clicks
  *   - Auto-sized actor boxes (getBBox with char-width fallback)
  *   - Self-loops (from===to or type:'self'), yellow #fbbf24

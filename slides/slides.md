@@ -187,7 +187,7 @@ clicks: 7
 
 # Durable Execution in Action
 
-<MinimalSequence
+<InteractiveSequence
   :actors="[
     { id: 'client', label: 'Client' },
     { id: 'server', label: 'Restate Server' },
