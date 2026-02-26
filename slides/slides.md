@@ -7,6 +7,7 @@ info: |
 drawings:
   persist: false
 transition: slide-left
+colorSchema: dark
 mdc: true
 ---
 
