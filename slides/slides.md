@@ -73,52 +73,6 @@ Persist execution progress. Resume seamlessly after crashes.
 
 ---
 
-# The Landscape
-
-Durable execution is a growing space
-
-<div class="relative mt-12">
-  <!-- Normal state -->
-  <div class="grid grid-cols-3 gap-8 text-center">
-    <div class="p-4 flex flex-col items-center gap-2">
-      <div class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center" style="background-color: #141414;">
-        <img src="/logos/temporal.png" class="h-14 w-14 rounded-full object-cover" alt="Temporal" />
-      </div>
-      <span>Temporal</span>
-    </div>
-    <div class="p-4 flex flex-col items-center gap-2">
-      <div class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center" style="background-color: #CF6A18;">
-        <img src="/logos/aws-lambda.png" class="h-14 w-14 rounded-full object-cover" alt="Lambda Durable Functions" />
-      </div>
-      <span>Lambda Durable Functions</span>
-    </div>
-    <div class="p-4 flex flex-col items-center gap-2">
-      <div class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center" style="background-color: #171717;">
-        <img src="/logos/inngest.png" class="h-14 w-14 rounded-full object-cover" alt="Inngest" />
-      </div>
-      <span>Inngest</span>
-    </div>
-    <div class="p-4 flex flex-col items-center gap-2">
-      <div class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center" style="background-color: #1E2533;">
-        <img src="/logos/dbos.png" class="h-14 w-14 rounded-full object-cover" alt="DBOS" />
-      </div>
-      <span>DBOS</span>
-    </div>
-    <div class="p-4 flex flex-col items-center gap-2">
-      <div class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center overflow-hidden" style="background-color: #ffffff;">
-        <img src="/logos/restate.png" class="h-14 w-14 object-cover" alt="Restate" />
-      </div>
-      <span>Restate</span>
-    </div>
-    <div class="p-4 flex flex-col items-center gap-2">
-      <span class="h-20 w-20 rounded-full border-2 border-gray-500 flex items-center justify-center text-2xl">+</span>
-      <span>and others...</span>
-    </div>
-  </div>
-</div>
-
----
-
 # Meet Restate
 
 A lightweight runtime for durable execution
