@@ -15,38 +15,6 @@ mdc: true
 
 Sam Dengler
 
-DevNexus 2026
-
----
-layout: two-cols-header
----
-
-# About Me
-
-<img src="/avatar.png" class="rounded-full w-40 h-40" />
-
-::left::
-
-**Sam Dengler**
-<br>Sr Principal Engineer, JPMorganChase
-
-AWS, serverless, event-driven architectures, distributed systems, AI engineering
-
-::right::
-
-@samdengler
-<br>[Twitter](https://twitter.com/samdengler) / [LinkedIn](https://linkedin.com/in/samdengler) / [GitHub](https://github.com/samdengler)
-
----
-
-# Agenda
-
-Durable Execution
-
-1. Introduction
-2. Developer Experience
-3. Resiliency and Failover
-
 ---
 
 # The Problem
@@ -102,40 +70,6 @@ async (ctx: restate.Context, { name }) => {
 What happens when `sendReminder` fails?
 
 ---
-
-# Demo: Live
-
-Register the service with Restate:
-
-```bash
-restate deployments register http://localhost:9080
-```
-
-Invoke the greeter (happy path):
-
-```bash
-http POST localhost:8080/Greeter/greet name=DevNexus
-```
-
-Invoke with failure simulation:
-
-```bash
-http POST localhost:8080/Greeter/greet name=Alice
-```
-
-<!--
-**Setup:** run `./scripts/demo.sh` before talk
-
-**Restate UI walkthrough:**
-
-1. Open http://localhost:9070/
-2. After registering, show the **Services** tab — Greeter service appears
-3. After invoking DevNexus, show **Invocations** — completed successfully
-4. After invoking Alice, show **Invocations** — watch retries in real-time
-5. Click into the Alice invocation to show journal entries and retry attempts
--->
-
----
 clicks: 7
 ---
 
@@ -165,24 +99,6 @@ clicks: 7
 
 ---
 
-# The Execution Flow
-
-**1. Request** → `POST /Greeter/greet` starts invocation
-
-**2. UUID** → `ctx.rand.uuidv4()` persisted 💾 → `uuid-1234` (deterministic)
-
-**3. Notification** → `ctx.run("Notification")` executed & journaled 💾
-
-**4. Sleep** → `ctx.sleep(1s)` persisted 💾 → timer scheduled
-
-**5. Reminder** → `ctx.run("Reminder")` executed & journaled 💾
-
-**6. Return** → Result persisted 💾 → `200 OK` to client
-
-**Every step durably persisted before proceeding!**
-
----
-
 # Inside the Journal
 
 Every invocation gets its own append-only journal
@@ -200,46 +116,6 @@ On retry, entries 0-3 are **replayed from the journal** — no re-execution. Onl
 ```bash
 restate sql "SELECT * FROM sys_journal WHERE id = '<invocation_id>';"
 ```
-
----
-
-# Demo: Inspecting the Journal
-
-List invocations to get an ID:
-
-```bash
-restate invocations list
-```
-
-Describe a specific invocation:
-
-```bash
-restate invocations describe <invocation_id>
-```
-
-Query the journal directly:
-
-```bash
-restate sql "SELECT index, entry_type, name FROM sys_journal WHERE id = '<invocation_id>';"
-```
-
-<!--
-**Restate UI walkthrough:**
-
-1. Open http://localhost:9070/
-2. Click **Invocations** — show the list of completed/in-progress invocations
-3. Click into the Alice invocation (the one with retries)
-4. Show the journal entries — each step with entry type, name, and result
-5. Point out the retry attempts on the failed steps
--->
-
----
-layout: center
----
-
-# Part 3: Resiliency and Failover
-
-What happens when things go wrong — and why you don't have to worry about it
 
 ---
 
@@ -280,44 +156,6 @@ Your handler talks to a **leader node**, which replicates to the cluster
     { from: 'r1', to: 'leader', label: 'ACK', type: 'response' },
     { from: 'r2', to: 'leader', label: 'ACK', type: 'response' },
     { from: 'leader', to: 'handler', label: 'OK — your code continues', type: 'response' },
-  ]"
-/>
-
----
-
-# What Happens When a Node Crashes?
-
-Restate detects failures and recovers automatically
-
-- The cluster **detects** the failed node via health checks
-- A replica is **promoted** to become the new leader
-- The new leader already has a copy of the journal (it was a replica!)
-- Your handler is **reconnected** — completed steps are replayed, not re-executed
-
-Your handler code **doesn't change**. Restate handles detection, promotion, and replay behind the scenes.
-
----
-clicks: 6
----
-
-# What Happens When a Node Crashes?
-
-The failover in action
-
-<InteractiveSequence
-  :actors="[
-    { id: 'app', label: 'Your Handler' },
-    { id: 'n1', label: 'Node 1 (Leader)' },
-    { id: 'n2', label: 'Node 2' },
-    { id: 'n3', label: 'Node 3' },
-  ]"
-  :steps="[
-    { from: 'app', to: 'n1', label: 'ctx.run() — step 3', type: 'request' },
-    { from: 'n1', to: 'n1', label: 'Node 1 crashes!', type: 'self' },
-    { from: 'n2', to: 'n2', label: 'Detects failure', type: 'self' },
-    { from: 'n2', to: 'n2', label: 'Becomes new leader', type: 'self' },
-    { from: 'n2', to: 'app', label: 'Replays journal — skips steps 1-2', type: 'response' },
-    { from: 'app', to: 'n2', label: 'Re-executes step 3', type: 'request' },
   ]"
 />
 
@@ -379,20 +217,9 @@ Restate combines the **durability of a database**, the **messaging of a queue**,
 </div>
 
 ---
-
-# Why This Matters
-
-Durable execution makes resilient apps **accessible to you**
-
-- Simplifies microservice orchestration
-- Tames long-running operations
-- Eliminates retry/state/recovery boilerplate
-- You write business logic, not plumbing
-
----
 layout: center
 ---
 
-# Thank You
+# Questions?
 
-[@samdengler](https://twitter.com/samdengler)
+Sam Dengler — [@samdengler](https://twitter.com/samdengler)
