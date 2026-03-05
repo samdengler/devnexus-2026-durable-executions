@@ -7,6 +7,8 @@ info: |
 drawings:
   persist: false
 transition: slide-left
+colorSchema: dark
+duration: 20
 mdc: true
 ---
 
@@ -70,7 +72,7 @@ async (ctx: restate.Context, { name }) => {
 What happens when `sendReminder` fails?
 
 ---
-clicks: 7
+clicks: 15
 ---
 
 # Durable Execution in Action
@@ -85,17 +87,21 @@ clicks: 7
   :steps="[
     { from: 'client', to: 'server', label: 'POST /Greeter/greet', type: 'request' },
     { from: 'server', to: 'sdk', label: 'invoke()', type: 'request' },
-    { from: 'sdk', to: 'handler', label: 'ctx.rand.uuidv4()', type: 'request' },
-    { from: 'handler', to: 'handler', label: 'sendNotification()', type: 'self' },
-    { from: 'handler', to: 'handler', label: 'ctx.sleep(1s)', type: 'self' },
-    { from: 'handler', to: 'handler', label: 'sendReminder()', type: 'self' },
-    { from: 'handler', to: 'client', label: '200 OK', type: 'response' },
+    { from: 'sdk', to: 'handler', label: 'start handler', type: 'request' },
+    { from: 'handler', to: 'sdk', label: 'ctx.rand.uuidv4()', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal UUID', type: 'request' },
+    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
+    { from: 'handler', to: 'sdk', label: 'ctx.run(Notification)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal notification', type: 'request' },
+    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
+    { from: 'handler', to: 'sdk', label: 'ctx.sleep(1s)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal sleep', type: 'request' },
+    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
+    { from: 'handler', to: 'sdk', label: 'ctx.run(Reminder)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal reminder', type: 'request' },
+    { from: 'server', to: 'client', label: '200 OK', type: 'response' },
   ]"
 />
-
-<div class="mt-8 text-sm text-gray-400">
-  Press → or Space to step through the execution
-</div>
 
 ---
 
@@ -161,6 +167,43 @@ Your handler talks to a **leader node**, which replicates to the cluster
 
 ---
 
+# What Happens When a Node Crashes?
+
+Restate uses Raft consensus for automatic failover
+
+- The cluster **detects** the failed node via health checks
+- The old leader is **sealed** and a new leader is elected
+- The new leader **promotes** a follower and rebuilds state from the journal
+- Your handler **reconnects** seamlessly
+
+---
+clicks: 9
+---
+
+# What Happens When a Node Crashes?
+
+<InteractiveSequence
+  :actors="[
+    { id: 'app', label: 'Your Handler' },
+    { id: 'n1', label: 'Node 1 (Leader)' },
+    { id: 'n2', label: 'Node 2' },
+    { id: 'n3', label: 'Node 3' },
+  ]"
+  :steps="[
+    { from: 'app', to: 'n1', label: 'ctx.run() -- step 3', type: 'request' },
+    { from: 'n1', to: 'n1', label: 'Node 1 crashes!', type: 'self' },
+    { type: 'event', label: 'Heartbeat timeout detected' },
+    { from: 'n3', to: 'n2', label: 'RequestVote', type: 'request' },
+    { from: 'n2', to: 'n3', label: 'VoteGranted', type: 'response' },
+    { type: 'event', label: 'Old leader sealed -- Node 2 elected' },
+    { from: 'n2', to: 'n2', label: 'Rebuild state from journal', type: 'self' },
+    { from: 'n2', to: 'app', label: 'Replays journal -- skips steps 1-2', type: 'response' },
+    { from: 'app', to: 'n2', label: 'Re-executes step 3', type: 'request' },
+  ]"
+/>
+
+---
+
 # The Three Guarantees
 
 What Restate promises about resilience
@@ -201,25 +244,22 @@ No saga patterns. No dead letter queues. No manual recovery scripts.
 
 ---
 
-# How Is This Different From What I'd Build Myself?
+# Recap
 
-| DIY Approach | Restate |
-|---|---|
-| Database + message queue + orchestrator | **Single runtime** handles all three |
-| You implement retries, idempotency, recovery | **Built in** — just write business logic |
-| Coordinating failover across multiple systems | **One failover model** for everything |
-| Tuning replication, consistency, timeouts | **Sensible defaults** that just work |
-
-<div class="mt-6 p-4 bg-amber-50 dark:bg-amber-900 rounded">
-
-Restate combines the **durability of a database**, the **messaging of a queue**, and the **orchestration of a workflow engine** into a single, fast runtime.
-
-</div>
+- Write **normal code** — journaling persists every step
+- **Raft consensus** replicates across nodes
+- **Automatic failover** — handler reconnects seamlessly
 
 ---
 layout: center
 ---
 
-# Questions?
+# See the Full Talk at DevNexus!
+
+**Durable Execution: Building Apps That Refuse to Die**
+
+March 14 in Atlanta
+
+[Session link](https://devnexus.com) | [Schedule](https://devnexus.com/schedule)
 
 Sam Dengler — [@samdengler](https://twitter.com/samdengler)

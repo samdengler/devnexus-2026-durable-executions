@@ -4,6 +4,7 @@
  *   - Click-through via useSlideContext $clicks
  *   - Auto-sized actor boxes (getBBox with char-width fallback)
  *   - Self-loops (from===to or type:'self'), yellow #fbbf24
+ *   - Event lines (type:'event'), horizontal gray bars with centered labels
  *   - Smart spacing: sum(widths) + equal gaps in remaining space
  *
  * Slide frontmatter needs `clicks: N` to enable stepping.
@@ -23,15 +24,15 @@ const visibleSteps = computed(() => Math.min(clicks.value, props.steps.length))
 
 // --- Layout constants ---
 const SLIDE_W = 980
-const SLIDE_H = 400
+const SLIDE_H = 600
 const HEADER_Y = 30
-const STEP_H = 32
+const STEP_H = 28
 const PAD_L = 40
 const PAD_R = 200   // extra room for self-loop labels to the right
-const BOX_PAD_X = 16
-const MIN_BOX_W = 50
+const BOX_PAD_X = 32
+const MIN_BOX_W = 80
 const BOX_H = 36
-const CHAR_W = 7     // fallback px per char at font-size 11
+const CHAR_W = 9     // fallback px per char at font-size 11
 const FONT_SIZE = 11
 const ARROW_FONT_SIZE = FONT_SIZE
 const SELF_FONT_SIZE = FONT_SIZE
@@ -91,7 +92,7 @@ const actorPositions = computed(() => {
   return positions
 })
 
-const svgH = computed(() => Math.min(SLIDE_H, HEADER_Y + BOX_H + 20 + props.steps.length * STEP_H + 40))
+const svgH = computed(() => SLIDE_H)
 
 const actorIdx = computed(() => {
   const m = {}
@@ -104,6 +105,7 @@ const sy = (i) => HEADER_Y + BOX_H + 20 + i * STEP_H
 
 // --- Step color helper ---
 function stepColor(s) {
+  if (s.type === 'event') return '#6b7480'
   if (s.type === 'self' || s.from === s.to) return '#fbbf24'
   if (s.type === 'response') return '#a78bfa'
   return '#38bdf8'
@@ -112,13 +114,22 @@ function stepColor(s) {
 // --- Rendered steps ---
 const rendered = computed(() =>
   props.steps.map((s, i) => {
+    const y = sy(i)
+    const color = stepColor(s)
+
+    if (s.type === 'event') {
+      return {
+        ...s, y, color, isEvent: true,
+        x1: PAD_L, x2: SLIDE_W - PAD_R, mid: (PAD_L + SLIDE_W - PAD_R) / 2,
+        vis: i < visibleSteps.value,
+      }
+    }
+
     const fromIdx = actorIdx.value[s.from]
     const toIdx = actorIdx.value[s.to]
     const isSelf = s.type === 'self' || s.from === s.to
     const x1 = ax(fromIdx)
     const x2 = ax(toIdx)
-    const y = sy(i)
-    const color = stepColor(s)
 
     if (isSelf) {
       // Self-loop: small arc to the right of the lifeline
@@ -182,8 +193,20 @@ const rendered = computed(() =>
     <!-- steps -->
     <template v-for="(s, i) in rendered" :key="'s'+i">
       <g v-if="s.vis">
+        <!-- event line -->
+        <template v-if="s.isEvent">
+          <line :x1="s.x1" :y1="s.y" :x2="s.x2" :y2="s.y"
+            :stroke="s.color" stroke-width="1.5"
+            stroke-dasharray="4 2" opacity="0.6" />
+          <text :x="s.mid" :y="s.y - 5" text-anchor="middle"
+            :fill="s.color"
+            :font-size="ARROW_FONT_SIZE" font-weight="500" font-style="italic" font-family="system-ui, sans-serif">
+            {{ s.label }}
+          </text>
+        </template>
+
         <!-- self-loop -->
-        <template v-if="s.isSelf">
+        <template v-else-if="s.isSelf">
           <path :d="s.path" fill="none" :stroke="s.color" stroke-width="1.5" />
           <polygon
             :points="`${s.arrowX},${s.arrowY} ${s.arrowX+6},${s.arrowY-3} ${s.arrowX+6},${s.arrowY+3}`"
