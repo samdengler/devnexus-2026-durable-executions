@@ -69,8 +69,6 @@ async (ctx: restate.Context, { name }) => {
 }
 ```
 
-What happens when `sendReminder` fails?
-
 ---
 clicks: 15
 ---
@@ -122,6 +120,35 @@ On retry, entries 0-3 are **replayed from the journal** — no re-execution. Onl
 ```bash
 restate sql "SELECT * FROM sys_journal WHERE id = '<invocation_id>';"
 ```
+
+---
+clicks: 11
+---
+
+# What Happens When sendReminder Fails?
+
+Execution fails, then resumes from the journal
+
+<InteractiveSequence
+  :actors="[
+    { id: 'handler', label: 'Handler' },
+    { id: 'sdk', label: 'SDK' },
+    { id: 'server', label: 'Restate Server' },
+  ]"
+  :steps="[
+    { from: 'handler', to: 'sdk', label: 'ctx.rand.uuidv4()', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal #1: UUID', type: 'request' },
+    { from: 'handler', to: 'sdk', label: 'ctx.run(Notification)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal #2: Notification', type: 'request' },
+    { from: 'handler', to: 'sdk', label: 'ctx.sleep(1s)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'journal #3: Sleep', type: 'request' },
+    { from: 'handler', to: 'sdk', label: 'ctx.run(Reminder)', type: 'request' },
+    { from: 'handler', to: 'handler', label: 'sendReminder() fails!', type: 'self' },
+    { type: 'event', label: 'Retry -- replay journal entries 1-3' },
+    { from: 'sdk', to: 'handler', label: 'Replay: skip completed steps', type: 'response' },
+    { from: 'handler', to: 'sdk', label: 'Retry: ctx.run(Reminder)', type: 'request' },
+  ]"
+/>
 
 ---
 
