@@ -17,6 +17,29 @@ mdc: true
 
 Sam Dengler
 
+DevNexus 2026
+
+---
+
+# About Me
+
+<div class="flex gap-8 items-start">
+<div>
+<img src="/avatar.png" class="rounded-full w-40 h-40" />
+</div>
+<div>
+
+**Sam Dengler**
+<br>Sr Principal Engineer, JPMorganChase
+
+AI engineering, event-driven architectures, distributed systems, AWS, serverless
+
+@samdengler
+<br>[Twitter](https://twitter.com/samdengler) / [LinkedIn](https://linkedin.com/in/samdengler) / [GitHub](https://github.com/samdengler)
+
+</div>
+</div>
+
 ---
 
 # The Problem
@@ -53,51 +76,188 @@ A lightweight runtime for durable execution
 - **Workflows** — long-running operations with signals and timers
 
 ---
+clicks: 2
+---
 
 # Demo: Greeter Service
 
+<div class="min-h-72">
+<div v-if="$clicks === 0">
+
 ```ts
+// TypeScript
 async (ctx: restate.Context, { name }) => {
-  // Each step is durably executed
   const greetingId = ctx.rand.uuidv4();
+
   await ctx.run("Notification", () =>
-    sendNotification(greetingId, name));
-  await ctx.sleep({ seconds: 1 });
+    sendNotification(greetingId, name)
+  );
+
   await ctx.run("Reminder", () =>
-    sendReminder(greetingId, name));
+    sendReminder(greetingId, name)
+  );
+
   return { result: `You said hi to ${name}!` };
 }
 ```
 
----
-clicks: 15
+</div>
+<div v-if="$clicks === 1">
+
+```java
+// Java
+@Handler
+public String greet(Context ctx, String name) {
+  String greetingId = ctx.random().nextUUID().toString();
+
+  ctx.run("Notification", () ->
+    sendNotification(greetingId, name)
+  );
+
+  ctx.run("Reminder", () ->
+    sendReminder(greetingId, name)
+  );
+
+  return "You said hi to " + name + "!";
+}
+```
+
+</div>
+<div v-if="$clicks >= 2">
+
+```python
+# Python
+@greeter.handler()
+async def greet(ctx: restate.Context, name: str) -> str:
+  greeting_id = ctx.uuid()
+
+  await ctx.run_typed("Notification",
+    lambda: send_notification(greeting_id, name)
+  )
+
+  await ctx.run_typed("Reminder",
+    lambda: send_reminder(greeting_id, name)
+  )
+
+  return f"You said hi to {name}!"
+```
+
+</div>
+</div>
+
+<div class="flex items-center justify-center gap-0 mt-8">
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Your Code</div>
+<svg width="180" height="24" class="shrink-0" style="vertical-align:middle">
+  <line x1="0" y1="12" x2="172" y2="12" stroke="#38bdf8" stroke-width="1.5" />
+  <polygon points="172,12 166,9 166,15" fill="#38bdf8" />
+</svg>
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">SDK (ctx)</div>
+<div class="shrink-0 relative" style="width:180px">
+  <span class="text-xs absolute w-full text-center" style="color:#38bdf8;font-weight:500;top:-14px">HTTP/2 + Protobuf</span>
+  <svg width="180" height="6" style="display:block">
+    <line x1="0" y1="3" x2="172" y2="3" stroke="#38bdf8" stroke-width="1.5" />
+    <polygon points="172,3 166,0 166,6" fill="#38bdf8" />
+  </svg>
+</div>
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Restate Server</div>
+</div>
+
 ---
 
-# Durable Execution in Action
+# Local Architecture
+
+<div class="flex items-center justify-center gap-8 mt-12">
+
+<div class="p-6 border-2 border-blue-400 rounded-lg text-center w-40">
+<div class="text-2xl mb-2">Client</div>
+<div class="text-sm text-gray-400">curl / httpie</div>
+</div>
+
+<div class="text-2xl text-gray-500">→</div>
+
+<div class="p-6 border-2 border-purple-400 rounded-lg text-center w-52">
+<div class="text-2xl mb-2">Restate Server</div>
+<div class="text-sm text-gray-400">localhost:8080</div>
+</div>
+
+<div class="text-2xl text-gray-500">→</div>
+
+<div class="p-6 border-2 border-yellow-400 rounded-lg text-center w-52">
+<div class="text-2xl mb-4">Service</div>
+<div class="p-3 border border-gray-500 rounded text-sm">
+<div class="font-semibold">Handler</div>
+<div class="text-gray-400 text-xs mt-1">SDK (ctx)</div>
+</div>
+<div class="text-sm text-gray-400 mt-2">localhost:9080</div>
+</div>
+
+</div>
+
+---
+
+# Demo: Starting the Stack
+
+<div></div>
+
+Start the service:
+
+```bash
+cd demos/01-durable-execution && npm run dev
+```
+
+Start Restate:
+
+```bash
+restate up --retain
+```
+
+Register the service:
+
+```bash
+restate deployments register http://localhost:9080
+```
+
+<!--
+**Before the talk:**
+1. Run `./scripts/demo.sh` to start tmux with all panes
+2. The script starts Restate server (top-left) and service (top-right)
+3. Use the bottom pane for commands
+4. Register: `restate deployments register http://localhost:9080`
+5. Verify: open Restate UI at http://localhost:9070/ — Greeter service should appear
+-->
+
+---
+clicks: 18
+---
+
+# Durable Execution in Action (Async)
 
 <InteractiveSequence
   :actors="[
     { id: 'client', label: 'Client' },
-    { id: 'server', label: 'Restate Server' },
+    { id: 'server', label: 'Restate Server', minWidth: 160 },
     { id: 'sdk', label: 'SDK' },
     { id: 'handler', label: 'Handler' },
   ]"
   :steps="[
-    { from: 'client', to: 'server', label: 'POST /Greeter/greet', type: 'request' },
-    { from: 'server', to: 'sdk', label: 'invoke()', type: 'request' },
-    { from: 'sdk', to: 'handler', label: 'start handler', type: 'request' },
+    { from: 'client', to: 'server', label: 'POST /Greeter/greet/send', type: 'request' },
+    { from: 'server', to: 'server', label: 'append_log(invocation)', type: 'self' },
+    { from: 'server', to: 'client', label: '202 Accepted', type: 'response' },
+    { from: 'server', to: 'sdk', label: 'StartMessage(journal_entries: 0)', type: 'request' },
+    { from: 'sdk', to: 'handler', label: 'handler.invoke(ctx, journal #0)', type: 'request' },
     { from: 'handler', to: 'sdk', label: 'ctx.rand.uuidv4()', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal UUID', type: 'request' },
-    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
+    { from: 'handler', to: 'handler', label: 'generate UUID (Idempotency-Key)', type: 'self' },
+    { from: 'sdk', to: 'server', label: 'RunCommand(UUID)', type: 'request' },
+    { from: 'server', to: 'server', label: 'append_log(UUID)', type: 'self', side: 'left' },
+    { from: 'server', to: 'sdk', label: 'Completion(UUID)', type: 'response' },
+    { from: 'sdk', to: 'handler', label: 'journal #1 UUID', type: 'response' },
     { from: 'handler', to: 'sdk', label: 'ctx.run(Notification)', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal notification', type: 'request' },
-    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
-    { from: 'handler', to: 'sdk', label: 'ctx.sleep(1s)', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal sleep', type: 'request' },
-    { from: 'server', to: 'sdk', label: 'ACK', type: 'response' },
-    { from: 'handler', to: 'sdk', label: 'ctx.run(Reminder)', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal reminder', type: 'request' },
-    { from: 'server', to: 'client', label: '200 OK', type: 'response' },
+    { from: 'handler', to: 'handler', label: 'sendNotification(Idempotency-Key)', type: 'self' },
+    { from: 'sdk', to: 'server', label: 'RunCommand(Notification)', type: 'request' },
+    { from: 'server', to: 'server', label: 'append_log(Notification)', type: 'self', side: 'left' },
+    { from: 'server', to: 'sdk', label: 'Completion(Notification)', type: 'response' },
+    { from: 'sdk', to: 'handler', label: 'journal #2 Notification', type: 'response' },
+    { type: 'event', label: 'Handler crashes!' },
   ]"
 />
 
@@ -111,44 +271,129 @@ Every invocation gets its own append-only journal
 |---|-----------|------|--------|
 | 0 | **Input** | | `{ name: "DevNexus" }` |
 | 1 | **Run** | `uuidv4` | `"a1b2c3d4-..."` |
-| 2 | **Run** | `Notification` | `void` |
-| 3 | **Sleep** | | `1000ms` |
-| 4 | **Run** | `Reminder` | *pending...* |
+| 2 | **Run** | `Notification` | `{ status: "sent" }` |
 
-On retry, entries 0-3 are **replayed from the journal** — no re-execution. Only entry 4 runs again.
+---
+
+# Demo: Trigger a Failure
+
+<div></div>
+
+Enable failure mode:
 
 ```bash
-restate sql "SELECT * FROM sys_journal WHERE id = '<invocation_id>';"
+touch demos/01-durable-execution/FAIL_DEMO
 ```
 
+Invoke the greeter (async):
+
+```bash
+http POST localhost:8080/Greeter/greet/send name=DevNexus
+```
+
+Check invocation status:
+
+```bash
+http localhost:8080/restate/invocation/INVOCATION_ID/output
+```
+
+<!--
+**Speaker notes:**
+- Create FAIL_DEMO flag file to make sendNotification throw
+- Use /send so we get 202 Accepted immediately
+- The handler will crash during the Notification step
+- Show the Restate UI: invocation is retrying
+- Then advance to the Replay slide to explain what happens next
+-->
+
 ---
-clicks: 11
+clicks: 16
 ---
 
-# What Happens When sendReminder Fails?
-
-Execution fails, then resumes from the journal
+# Durable Execution: Replay
 
 <InteractiveSequence
   :actors="[
-    { id: 'handler', label: 'Handler' },
+    { id: 'client', label: 'Client' },
+    { id: 'server', label: 'Restate Server', minWidth: 160 },
     { id: 'sdk', label: 'SDK' },
-    { id: 'server', label: 'Restate Server' },
+    { id: 'handler', label: 'Handler' },
   ]"
   :steps="[
+    { from: 'server', to: 'sdk', label: 'StartMessage(journal_entries: 3)', type: 'request' },
+    { from: 'sdk', to: 'handler', label: 'handler.invoke(ctx, journal #0)', type: 'request' },
     { from: 'handler', to: 'sdk', label: 'ctx.rand.uuidv4()', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal #1: UUID', type: 'request' },
+    { from: 'sdk', to: 'handler', label: 'journal #1 UUID', type: 'response' },
     { from: 'handler', to: 'sdk', label: 'ctx.run(Notification)', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal #2: Notification', type: 'request' },
-    { from: 'handler', to: 'sdk', label: 'ctx.sleep(1s)', type: 'request' },
-    { from: 'sdk', to: 'server', label: 'journal #3: Sleep', type: 'request' },
+    { from: 'sdk', to: 'handler', label: 'journal #2 Notification', type: 'response' },
     { from: 'handler', to: 'sdk', label: 'ctx.run(Reminder)', type: 'request' },
-    { from: 'handler', to: 'handler', label: 'sendReminder() fails!', type: 'self' },
-    { type: 'event', label: 'Retry -- replay journal entries 1-3' },
-    { from: 'sdk', to: 'handler', label: 'Replay: skip completed steps', type: 'response' },
-    { from: 'handler', to: 'sdk', label: 'Retry: ctx.run(Reminder)', type: 'request' },
+    { from: 'handler', to: 'handler', label: 'sendReminder(Idempotency-Key)', type: 'self' },
+    { from: 'sdk', to: 'server', label: 'RunCommand(Reminder)', type: 'request' },
+    { from: 'server', to: 'server', label: 'append_log(Reminder)', type: 'self', side: 'left' },
+    { from: 'server', to: 'sdk', label: 'Completion(Reminder)', type: 'response' },
+    { from: 'sdk', to: 'handler', label: 'journal #3 Reminder', type: 'response' },
+    { from: 'handler', to: 'sdk', label: 'return Result', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'OutputCommand(Result)', type: 'request' },
+    { from: 'sdk', to: 'server', label: 'EndMessage', type: 'request' },
+    { from: 'server', to: 'server', label: 'append_log(Result)', type: 'self', side: 'left' },
   ]"
 />
+
+---
+
+# Inside the Journal (after replay)
+
+Invocation complete — all entries durably persisted
+
+| # | Entry Type | Name | Result |
+|---|-----------|------|--------|
+| 0 | **Input** | | `{ name: "DevNexus" }` |
+| 1 | **Run** | `uuidv4` | `"a1b2c3d4-..."` |
+| 2 | **Run** | `Notification` | `{ status: "sent" }` |
+| 3 | **Run** | `Reminder` | `{ status: "sent" }` |
+| 4 | **Output** | | `{ result: "You said hi to DevNexus!" }` |
+
+---
+
+# Demo: Live
+
+<div></div>
+
+Register the service with Restate:
+
+```bash
+restate deployments register http://localhost:9080
+```
+
+Invoke the greeter (async):
+
+```bash
+http POST localhost:8080/Greeter/greet/send name=DevNexus
+```
+
+Check invocation status:
+
+```bash
+http localhost:8080/restate/invocation/INVOCATION_ID/output
+```
+
+Invoke with failure simulation:
+
+```bash
+http POST localhost:8080/Greeter/greet/send name=Alice
+```
+
+<!--
+**Setup:** run `./scripts/demo.sh` before talk
+
+**Restate UI walkthrough:**
+
+1. Open http://localhost:9070/
+2. After registering, show the **Services** tab — Greeter service appears
+3. After invoking DevNexus, show **Invocations** — completed successfully
+4. After invoking Alice, show **Invocations** — watch retries in real-time
+5. Click into the Alice invocation to show journal entries and retry attempts
+-->
 
 ---
 
