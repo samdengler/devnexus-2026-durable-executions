@@ -81,7 +81,7 @@ clicks: 2
 
 # Demo: Greeter Service
 
-<div class="min-h-72">
+<div style="height:340px">
 <div v-if="$clicks === 0">
 
 ```ts
@@ -90,11 +90,11 @@ async (ctx: restate.Context, { name }) => {
   const greetingId = ctx.rand.uuidv4();
 
   await ctx.run("Notification", () =>
-    sendNotification(greetingId, name)
+    sendNotification({ idempotencyKey: greetingId, name })
   );
 
   await ctx.run("Reminder", () =>
-    sendReminder(greetingId, name)
+    sendReminder({ idempotencyKey: greetingId, name })
   );
 
   return { result: `You said hi to ${name}!` };
@@ -104,27 +104,6 @@ async (ctx: restate.Context, { name }) => {
 </div>
 <div v-if="$clicks === 1">
 
-```java
-// Java
-@Handler
-public String greet(Context ctx, String name) {
-  String greetingId = ctx.random().nextUUID().toString();
-
-  ctx.run("Notification", () ->
-    sendNotification(greetingId, name)
-  );
-
-  ctx.run("Reminder", () ->
-    sendReminder(greetingId, name)
-  );
-
-  return "You said hi to " + name + "!";
-}
-```
-
-</div>
-<div v-if="$clicks >= 2">
-
 ```python
 # Python
 @greeter.handler()
@@ -132,14 +111,38 @@ async def greet(ctx: restate.Context, name: str) -> str:
   greeting_id = ctx.uuid()
 
   await ctx.run_typed("Notification",
-    lambda: send_notification(greeting_id, name)
+    lambda: send_notification(idempotency_key=greeting_id, name=name)
   )
 
   await ctx.run_typed("Reminder",
-    lambda: send_reminder(greeting_id, name)
+    lambda: send_reminder(idempotency_key=greeting_id, name=name)
   )
 
   return f"You said hi to {name}!"
+```
+
+</div>
+<div v-if="$clicks >= 2">
+
+```java
+// Java
+record Notification(String idempotencyKey, String name) {}
+record Reminder(String idempotencyKey, String name) {}
+
+@Handler
+public String greet(Context ctx, String name) {
+  var greetingId = ctx.random().nextUUID().toString();
+
+  ctx.run("Notification", () ->
+    sendNotification(new Notification(greetingId, name))
+  );
+
+  ctx.run("Reminder", () ->
+    sendReminder(new Reminder(greetingId, name))
+  );
+
+  return "You said hi to " + name + "!";
+}
 ```
 
 </div>
@@ -208,7 +211,7 @@ cd demos/01-durable-execution && npm run dev
 Start Restate:
 
 ```bash
-restate up --retain
+restate up
 ```
 
 Register the service:
@@ -219,11 +222,44 @@ restate deployments register http://localhost:9080
 
 <!--
 **Before the talk:**
-1. Run `./scripts/demo.sh` to start tmux with all panes
+1. Run `./bin/demo.sh` to start tmux with all panes
 2. The script starts Restate server (top-left) and service (top-right)
 3. Use the bottom pane for commands
 4. Register: `restate deployments register http://localhost:9080`
 5. Verify: open Restate UI at http://localhost:9070/ — Greeter service should appear
+-->
+
+---
+
+# Demo: Trigger a Failure
+
+<div></div>
+
+Enable failure mode:
+
+```bash
+touch demos/01-durable-execution/FAIL_DEMO
+```
+
+Invoke the greeter (async):
+
+```bash
+http POST localhost:8080/Greeter/greet/send name=DevNexus
+```
+
+Check invocation status:
+
+```bash
+http localhost:8080/restate/invocation/INVOCATION_ID/output
+```
+
+<!--
+**Speaker notes:**
+- Create FAIL_DEMO flag file to make sendNotification throw
+- Use /send so we get 202 Accepted immediately
+- The handler will crash during the Notification step
+- Show the Restate UI: invocation is retrying
+- Then advance to the sequence diagram to explain what happened
 -->
 
 ---
@@ -275,20 +311,14 @@ Every invocation gets its own append-only journal
 
 ---
 
-# Demo: Trigger a Failure
+# Demo: Fix the Failure
 
 <div></div>
 
-Enable failure mode:
+Remove the failure flag:
 
 ```bash
-touch demos/01-durable-execution/FAIL_DEMO
-```
-
-Invoke the greeter (async):
-
-```bash
-http POST localhost:8080/Greeter/greet/send name=DevNexus
+rm demos/01-durable-execution/FAIL_DEMO
 ```
 
 Check invocation status:
@@ -299,11 +329,10 @@ http localhost:8080/restate/invocation/INVOCATION_ID/output
 
 <!--
 **Speaker notes:**
-- Create FAIL_DEMO flag file to make sendNotification throw
-- Use /send so we get 202 Accepted immediately
-- The handler will crash during the Notification step
-- Show the Restate UI: invocation is retrying
-- Then advance to the Replay slide to explain what happens next
+- Remove FAIL_DEMO so the next retry succeeds
+- Restate will automatically retry the invocation
+- Show the Restate UI: invocation completes successfully
+- Then advance to the Replay slide to explain what happened
 -->
 
 ---
@@ -384,7 +413,7 @@ http POST localhost:8080/Greeter/greet/send name=Alice
 ```
 
 <!--
-**Setup:** run `./scripts/demo.sh` before talk
+**Setup:** run `./bin/demo.sh` before talk
 
 **Restate UI walkthrough:**
 
