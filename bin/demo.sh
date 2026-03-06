@@ -64,12 +64,15 @@ tmux bind-key -T prefix 2 select-pane -t 2
 tmux bind-key -T prefix 3 select-pane -t 3
 tmux bind-key -T prefix X confirm-before -p "kill-session? (y/n)" \
   "send-keys -t ${SESSION}:1.0 C-c ; send-keys -t ${SESSION}:1.1 C-c ; run-shell 'sleep 1' ; kill-session"
+tmux bind-key -T prefix x confirm-before -p "kill-session? (y/n)" \
+  "send-keys -t ${SESSION}:1.0 C-c ; send-keys -t ${SESSION}:1.1 C-c ; run-shell 'sleep 1' ; kill-session"
 tmux set-option -g display-panes-time 5000
 tmux set-option -t "$SESSION" -g mouse on
 tmux set-option -t "$SESSION" message-style "fg=yellow,bg=#1e293b,bold"
 tmux set-option -t "$SESSION" status-style "fg=yellow,bg=#1e293b"
 
 # Open Restate UI in cmux browser (falls back silently if not in cmux)
+sleep 1
 command -v cmux &>/dev/null && cmux browser open http://localhost:9070 2>/dev/null || true
 
 # Focus the command pane

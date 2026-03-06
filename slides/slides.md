@@ -229,6 +229,12 @@ restate deployments register http://localhost:9080
 5. Switch to command pane (Window 0, bottom) and register:
    `restate deployments register http://localhost:9080`
 6. Verify: Greeter service should appear in the Restate UI
+
+**Reset between runs:**
+```
+restate invocations cancel Greeter --kill --yes
+restate invocations purge Greeter --yes
+```
 -->
 
 ---
@@ -255,11 +261,14 @@ Check invocation status:
 http localhost:8080/restate/invocation/INVOCATION_ID/output
 ```
 
+Kill the service (Ctrl+C in Services window)
+
 <!--
 **Speaker notes:**
-- Create FAIL_DEMO flag file to make sendNotification throw
+- Replace INVOCATION_ID with the id from the x-restate-id header or JSON response
+- Create FAIL_DEMO flag file so handler stalls before Reminder step
 - Use /send so we get 202 Accepted immediately
-- The handler will crash during the Notification step
+- The handler will be waiting — kill the service to simulate a crash
 - Show the Restate UI: invocation is retrying
 - Then advance to the sequence diagram to explain what happened
 -->
@@ -323,6 +332,12 @@ Remove the failure flag:
 rm FAIL_DEMO
 ```
 
+Restart the service:
+
+```bash
+npm run dev
+```
+
 Check invocation status:
 
 ```bash
@@ -383,6 +398,37 @@ Invocation complete — all entries durably persisted
 | 2 | **Run** | `Notification` | `{ status: "sent" }` |
 | 3 | **Run** | `Reminder` | `{ status: "sent" }` |
 | 4 | **Output** | | `{ result: "You said hi to DevNexus!" }` |
+
+---
+
+# What About the Logs?
+
+Logs inside and outside `ctx.run()` behave differently on replay
+
+```ts {all|2,8|4-7}
+async (ctx: restate.Context, { name }) => {
+  log(`Handler started for ${name}`);          // runs EVERY time
+
+  await ctx.run("Notification", () => {
+    log(`Sending notification for ${greetingId}`);  // skipped on replay
+    sendNotification({ idempotencyKey: greetingId, name });
+  });
+
+  await ctx.run("Reminder", () => {
+    log(`Sending reminder for ${greetingId}`);      // skipped on replay
+    sendReminder({ idempotencyKey: greetingId, name });
+  });
+}
+```
+
+- **Outside `ctx.run()`** — re-executes on every replay
+- **Inside `ctx.run()`** — skipped when replaying from journal
+
+Show the replay log:
+
+```bash
+cat demo-log.txt
+```
 
 ---
 
@@ -524,3 +570,56 @@ March 14 in Atlanta
 [Session link](https://devnexus.com) | [Schedule](https://devnexus.com/schedule)
 
 Sam Dengler — [@samdengler](https://twitter.com/samdengler)
+
+---
+
+# Demo Cheatsheet
+
+<div class="grid grid-cols-2 gap-x-6 gap-y-2 text-sm">
+<div>
+
+**Setup**
+```bash
+restate deployments register http://localhost:9080
+```
+
+**Trigger Failure**
+```bash
+touch FAIL_DEMO
+```
+```bash
+http POST localhost:8080/Greeter/greet/send name=DevNexus
+```
+```bash
+http localhost:8080/restate/invocation/INVOCATION_ID/output
+```
+```bash
+kill $(lsof -ti :9080)
+```
+
+</div>
+<div>
+
+**Fix Failure**
+```bash
+rm FAIL_DEMO
+```
+```bash
+npm run dev
+```
+```bash
+http localhost:8080/restate/invocation/INVOCATION_ID/output
+```
+
+**Replay Logs**
+```bash
+cat demo-log.txt
+```
+
+**Reset Restate**
+```bash
+restate invocations cancel Greeter --kill --yes 2>/dev/null; restate invocations purge Greeter --yes 2>/dev/null
+```
+
+</div>
+</div>

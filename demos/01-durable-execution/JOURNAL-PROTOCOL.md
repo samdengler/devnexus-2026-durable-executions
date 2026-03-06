@@ -164,7 +164,7 @@ This means:
 
 The demo shows that:
 1. **Journal entries are replayed** - same UUID, same results
-2. **Regular code is re-executed** - different timestamps in `replay-log.txt`
+2. **Regular code is re-executed** - different timestamps in `demo-log.txt`
 3. **Partial progress preserved** - notification doesn't run again on resume
 4. **Deterministic execution** - same inputs, same outputs, every time
 5. **True durability** - every step persisted before proceeding

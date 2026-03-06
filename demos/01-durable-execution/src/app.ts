@@ -1,5 +1,5 @@
 import * as restate from "@restatedev/restate-sdk";
-import { sendNotification, sendReminder, log } from "./utils";
+import { sendNotification, sendReminder, waitForFlag, log, setInvocationId } from "./utils";
 
 import { z } from "zod";
 
@@ -17,17 +17,21 @@ const greeter = restate.service({
     greet: restate.createServiceHandler(
       { input: restate.serde.schema(Greeting), output: restate.serde.schema(GreetingResponse) },
       async (ctx: restate.Context, { name }) => {
-        log(`Handler started for ${name}`);
+        setInvocationId(ctx.request().id);
+        log(`========== Handler started for ${name} ==========`);
 
         const greetingId = ctx.rand.uuidv4();
+        const shortId = greetingId.slice(0, 8);
 
         await ctx.run("Notification", () => {
-          log(`Sending notification for ${greetingId}`);
+          log(`Sending notification for ${shortId}`);
           sendNotification({ idempotencyKey: greetingId, name });
         });
 
+        waitForFlag("Reminder");
+
         await ctx.run("Reminder", () => {
-          log(`Sending reminder for ${greetingId}`);
+          log(`Sending reminder for ${shortId}`);
           sendReminder({ idempotencyKey: greetingId, name });
         });
 
