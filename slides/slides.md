@@ -40,6 +40,41 @@ Agentic engineering, event-driven architectures, distributed systems, AWS, serve
 </div>
 </div>
 
+<div class="flex justify-end mt-4 mr-8">
+<div class="text-center">
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=https://samdengler.github.io/devnexus-2026-durable-executions/" class="w-28 h-28" />
+<div class="text-xs mt-1 text-slate-400">Slides</div>
+</div>
+</div>
+
+---
+clicks: 1
+---
+
+# The Simple Life
+
+<div class="flex items-center justify-center mt-8">
+<div v-if="$clicks < 1" class="text-center relative">
+<img src="/bambi.png" class="h-56 mx-auto" />
+<div class="absolute" style="top:8%;right:12%">
+<span style="color:#b91c1c;font-size:16px;font-weight:700">Your App</span>
+<svg width="80" height="70" style="display:block"><line x1="40" y1="5" x2="10" y2="60" stroke="#b91c1c" stroke-width="2.5" /><polygon points="10,60 17,53 11,50" fill="#b91c1c" /></svg>
+</div>
+</div>
+<div v-if="$clicks >= 1" class="text-center relative">
+<img src="/godzilla.png" class="h-56 mx-auto" />
+<div class="absolute" style="top:8%;right:12%">
+<span style="color:#b91c1c;font-size:16px;font-weight:700">Reality</span>
+<svg width="80" height="70" style="display:block"><line x1="30" y1="5" x2="10" y2="60" stroke="#b91c1c" stroke-width="2.5" /><polygon points="10,60 17,53 11,50" fill="#b91c1c" /></svg>
+</div>
+</div>
+</div>
+
+<div v-if="$clicks < 1" class="text-center mt-6 text-yellow-400 text-base font-medium">No network calls. No retries. No failures. Life is good.</div>
+<div v-if="$clicks >= 1" class="text-center mt-6 text-red-400 text-base font-medium">Then distributed systems happen.</div>
+
+<div class="absolute bottom-4 right-6 text-xs text-slate-600"><a href="https://tvtropes.org/pmwiki/pmwiki.php/WesternAnimation/BambiMeetsGodzilla">Bambi Meets Godzilla</a></div>
+
 ---
 
 # The Problem
@@ -64,6 +99,8 @@ Building distributed applications is hard
 </div>
 
 ---
+clicks: 2
+---
 
 # What is Durable Execution?
 
@@ -72,8 +109,24 @@ Persist execution progress. Resume seamlessly after crashes.
 - Your code runs **exactly as written** — normal functions, normal control flow
 - The runtime journals each step as it completes
 - On failure, replay from the journal — skip completed steps
-- You focus on **business logic**, not infrastructure
 - Growing ecosystem: [Temporal](https://temporal.io), [Restate](https://restate.dev), [Azure Durable Functions](https://learn.microsoft.com/azure/azure-functions/durable/), [AWS Lambda Durable Functions](https://aws.amazon.com/blogs/compute/introducing-aws-lambda-durable-functions/), [Inngest](https://inngest.com), [DBOS](https://dbos.dev), [Vercel Workflow SDK](https://vercel.com/docs/workflow-sdk), [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
+
+<div class="mt-6 text-slate-400">
+
+<div v-if="$clicks >= 1" class="mb-2">
+
+1. Not a new idea — transaction logs, event sourcing, sagas (nothing is new... except maybe Claude Code?)
+
+</div>
+<div v-if="$clicks >= 2">
+
+2. Not a silver bullet — don't @ me about why this won't work for your use case
+
+</div>
+
+</div>
+
+<div class="absolute bottom-8 left-0 right-0 text-center text-yellow-400 text-base font-medium">More time on business logic, less on distributed systems plumbing.</div>
 
 ---
 
@@ -334,6 +387,8 @@ Every invocation gets its own append-only journal
 | 1 | **Run** | `uuidv4` | `"a1b2c3d4-..."` |
 | 2 | **Run** | `Notification` | `{ status: "sent" }` |
 
+<div class="absolute bottom-6 left-12 text-xs text-sky-400"><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying">The Log: What Every Software Engineer Should Know (Kreps, 2013)</a> · <a href="https://restate.dev/blog/replicated-loglet/">Bifrost: Restate's Replicated Log (Rohrmann, 2024)</a></div>
+
 ---
 
 # Demo: Fix the Failure
@@ -438,11 +493,9 @@ async (ctx: restate.Context, { name }) => {
 - **Outside `ctx.run()`** — re-executes on every replay
 - **Inside `ctx.run()`** — skipped when replaying from journal
 
-Show the replay log:
-
-```bash
-cat demo-log.txt
-```
+<!--
+Show the replay log: cat demo-log.txt
+-->
 
 ---
 
@@ -460,6 +513,8 @@ Every `ctx.run()` is replicated before your code moves on
 **Think of it like saving a document to multiple cloud drives at once.** Your code doesn't continue until the save is confirmed. Typical latency: **~3ms**.
 
 </div>
+
+<div class="absolute bottom-6 left-12 text-xs text-sky-400"><a href="https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf">Consistency Tradeoffs in Modern Distributed Database System Design (Abadi, 2012)</a> · <a href="https://arxiv.org/pdf/2109.07771">Quantifying and Generalizing the CAP Theorem (Sharov et al., 2021)</a></div>
 
 ---
 clicks: 6
@@ -493,9 +548,10 @@ Your handler talks to a **leader node**, which replicates to the cluster
 Restate uses Raft consensus for automatic failover
 
 - The cluster **detects** the failed node via health checks
-- The old leader is **sealed** (inspired by Meta's [Delos](https://research.facebook.com/publications/delos-distributed-log-based-consensus-for-replicated-state-machines/))
-- A new leader is elected via **Raft** consensus
+- The old leader is **sealed** and a new leader is elected via **Raft** consensus
 - The new leader rebuilds state from the journal — your handler **reconnects** seamlessly
+
+<div class="absolute bottom-6 left-12 text-xs text-sky-400"><a href="https://raft.github.io/raft.pdf">In Search of an Understandable Consensus Algorithm (Ongaro & Ousterhout, 2014)</a> · <a href="https://research.facebook.com/publications/delos-distributed-log-based-consensus-for-replicated-state-machines/">Delos: Distributed Log-based Consensus (Balakrishnan et al., 2020)</a></div>
 
 ---
 clicks: 9
