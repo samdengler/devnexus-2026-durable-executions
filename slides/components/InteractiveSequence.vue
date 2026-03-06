@@ -104,35 +104,37 @@ const ax = (i) => actorPositions.value[i]?.cx ?? 0
 
 const STEP_H_COMPACT = 18
 const stepYPositions = computed(() => {
+  // First pass: compute raw gaps
+  const gaps = []
+  for (let i = 0; i < props.steps.length - 1; i++) {
+    const cur = props.steps[i]
+    const next = props.steps[i + 1]
+    const curIsSelf = cur.type === 'self' || cur.from === cur.to
+    const nextIsSelf = next.type === 'self' || next.from === next.to
+    const selfLoopOverlaps = (self, other) => {
+      if (self.from !== other.from && self.from !== other.to) return false
+      const selfIdx = actorIdx.value[self.from]
+      const otherFrom = actorIdx.value[other.from]
+      const otherTo = actorIdx.value[other.to]
+      const arrowGoesRight = otherTo > otherFrom
+      const loopSide = self.side === 'left' ? 'left' : 'right'
+      if (loopSide === 'left' && arrowGoesRight) return false
+      if (loopSide === 'right' && !arrowGoesRight) return false
+      return true
+    }
+    const selfOverlap = (curIsSelf && !nextIsSelf && selfLoopOverlaps(cur, next))
+      || (nextIsSelf && !curIsSelf && selfLoopOverlaps(next, cur))
+      || (curIsSelf && nextIsSelf)
+    const sameActors = cur.from === next.from && cur.to === next.to
+    const samePairReversed = cur.from === next.to && cur.to === next.from
+    gaps.push((sameActors || samePairReversed || selfOverlap) ? STEP_H : STEP_H_COMPACT)
+  }
+
   const positions = []
   let y = HEADER_Y + BOX_H + STEP_H
-  for (let i = 0; i < props.steps.length; i++) {
+  for (let i = 0; i < gaps.length + 1; i++) {
     positions.push(y)
-    if (i < props.steps.length - 1) {
-      const cur = props.steps[i]
-      const next = props.steps[i + 1]
-      const curIsSelf = cur.type === 'self' || cur.from === cur.to
-      const nextIsSelf = next.type === 'self' || next.from === next.to
-      // Check if a self-loop visually overlaps with the adjacent step
-      // A left-side self-loop doesn't collide with arrows going right, and vice versa
-      const selfLoopOverlaps = (self, other) => {
-        if (self.from !== other.from && self.from !== other.to) return false
-        const selfIdx = actorIdx.value[self.from]
-        const otherFrom = actorIdx.value[other.from]
-        const otherTo = actorIdx.value[other.to]
-        const arrowGoesRight = otherTo > otherFrom
-        const loopSide = self.side === 'left' ? 'left' : 'right'
-        if (loopSide === 'left' && arrowGoesRight) return false
-        if (loopSide === 'right' && !arrowGoesRight) return false
-        return true
-      }
-      const selfOverlap = (curIsSelf && !nextIsSelf && selfLoopOverlaps(cur, next))
-        || (nextIsSelf && !curIsSelf && selfLoopOverlaps(next, cur))
-        || (curIsSelf && nextIsSelf)
-      const sameActors = cur.from === next.from && cur.to === next.to
-      const samePairReversed = cur.from === next.to && cur.to === next.from
-      y += (sameActors || samePairReversed || selfOverlap) ? STEP_H : STEP_H_COMPACT
-    }
+    if (i < gaps.length) y += gaps[i]
   }
   return positions
 })

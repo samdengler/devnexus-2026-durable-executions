@@ -543,11 +543,250 @@ A standby node can take over in **seconds**, not minutes. Your in-flight invocat
 
 </div>
 
-<div class="mt-6 text-center text-sm opacity-60">
+---
 
-No saga patterns. No dead letter queues. No manual recovery scripts.
+# Virtual Objects
 
-</div>
+Stateful entities with a single writer — like an actor with durable K/V state
+
+```ts
+const counter = restate.object({
+  name: "Counter",
+  handlers: {
+    add: restate.createObjectHandler(
+      async (ctx: restate.ObjectContext, value: number) => {
+        const current = (await ctx.get<number>("count")) ?? 0;
+        ctx.set("count", current + value);
+        return current + value;
+      }
+    ),
+    // Signal handler — receives events, runs with exclusive access
+    notify: restate.createObjectHandler(
+      async (ctx: restate.ObjectContext, event: string) => {
+        const log = (await ctx.get<string[]>("events")) ?? [];
+        log.push(event);
+        ctx.set("events", log);
+      }
+    ),
+  },
+});
+```
+
+- Keyed by ID — `POST /Counter/my-counter/add`
+- **Exclusive access** per key — no races, no locks
+
+---
+
+# Workflows
+
+Long-running operations with durable promises, signals, and timers
+
+```ts
+const checkout = restate.workflow({
+  name: "Checkout",
+  handlers: {
+    run: restate.createWorkflowHandler(
+      async (ctx: restate.WorkflowContext, order: Order) => {
+        await ctx.run("reserve", () => reserveInventory(order));
+
+        // Wait for external signal (e.g. payment confirmation)
+        const payment = await ctx.promise<Payment>("payment");
+
+        await ctx.run("fulfill", () => fulfillOrder(order, payment));
+        return { status: "completed" };
+      }
+    ),
+    // Signal handler — called externally to unblock the workflow
+    confirmPayment: restate.createWorkflowHandler(
+      async (ctx: restate.SharedWorkflowContext, payment: Payment) => {
+        ctx.promise<Payment>("payment").resolve(payment);
+      }
+    ),
+  },
+});
+```
+
+- Each workflow run has a **durable ID** — at-most-once execution
+- `ctx.promise()` — durable, survives crashes and restarts
+
+---
+
+# Kafka Stream Processing
+
+Trigger handlers from Kafka topics to continue workflows
+
+```ts
+// Restate subscribes to Kafka and invokes your handler per message
+const events = restate.service({
+  name: "EventProcessor",
+  handlers: {
+    process: restate.createServiceHandler(
+      async (ctx: restate.Context, event: PaymentEvent) => {
+        // Forward to the waiting workflow
+        ctx.workflowClient(checkout, event.orderId)
+          .confirmPayment(event);
+      }
+    ),
+  },
+});
+```
+
+```bash
+# Register Kafka subscription with Restate
+restate subscriptions create kafka-topic EventProcessor/process
+```
+
+- Restate manages offsets — exactly-once processing
+- Each message becomes a **durable invocation**
+
+---
+
+# Recipe: Saga Pattern
+
+Compensating actions on failure — no framework needed
+
+```ts
+async (ctx: restate.Context, booking: Booking) => {
+  const flight = await ctx.run("book flight",
+    () => bookFlight(booking));
+
+  const hotel = await ctx.run("book hotel",
+    () => bookHotel(booking));
+
+  const car = await ctx.run("rent car", async () => {
+    try {
+      return await rentCar(booking);
+    } catch (e) {
+      // Compensate previous steps
+      await ctx.run("cancel hotel", () => cancelHotel(hotel));
+      await ctx.run("cancel flight", () => cancelFlight(flight));
+      throw e;
+    }
+  });
+
+  return { flight, hotel, car };
+}
+```
+
+- Each compensation is **journaled** — won't repeat on retry
+- Normal try/catch — no saga orchestrator needed
+
+---
+
+# Recipe: Cron Job
+
+Durable sleep + recurring execution
+
+```ts
+const cron = restate.service({
+  name: "CronJob",
+  handlers: {
+    run: restate.createServiceHandler(
+      async (ctx: restate.Context) => {
+        while (true) {
+          await ctx.run("task", () => doPeriodicWork());
+
+          // Durable sleep — survives crashes and restarts
+          await ctx.sleep(60_000); // 1 minute
+        }
+      }
+    ),
+  },
+});
+```
+
+- `ctx.sleep()` is **durable** — persisted in the journal
+- Survives process restarts, node failures, deployments
+- No external scheduler needed
+
+---
+
+# Parallel Work
+
+Fan-out concurrent tasks, gather results durably
+
+```ts
+async (ctx: restate.Context, urls: string[]) => {
+  // Fan out — each call is a separate durable invocation
+  const promises = urls.map(url =>
+    ctx.serviceClient(Fetcher).fetch(url)
+  );
+
+  // Gather results — all or nothing
+  const results = await Promise.all(promises);
+
+  await ctx.run("aggregate", () => saveResults(results));
+  return results;
+}
+```
+
+- Each sub-invocation is **independently durable**
+- Parent resumes from journal — no re-fetching completed results
+- Failures in one branch don't lose progress in others
+
+---
+
+# Durable Webhooks
+
+Register a callback that survives crashes
+
+```ts
+async (ctx: restate.Context, order: Order) => {
+  await ctx.run("submit", () => submitToVendor(order));
+
+  // Durable promise — waits for webhook callback
+  const result = await ctx.promise<WebhookPayload>("callback");
+
+  await ctx.run("process", () => processResult(order, result));
+  return result;
+}
+```
+
+```ts
+// Webhook endpoint — resolves the waiting promise
+webhookReceived: restate.createServiceHandler(
+  async (ctx: restate.Context, payload: WebhookPayload) => {
+    ctx.promise<WebhookPayload>("callback").resolve(payload);
+  }
+),
+```
+
+- The handler **suspends** — no threads, no polling
+- Webhook can arrive minutes, hours, or days later
+
+---
+
+# Rate Limiting
+
+Control concurrency with virtual objects
+
+```ts
+const rateLimiter = restate.object({
+  name: "RateLimiter",
+  handlers: {
+    acquire: restate.createObjectHandler(
+      async (ctx: restate.ObjectContext) => {
+        const count = (await ctx.get<number>("inflight")) ?? 0;
+        if (count >= 10) {
+          // Durable sleep — back-pressure without dropping
+          await ctx.sleep(1_000);
+          return ctx.objectClient(RateLimiter, ctx.key).acquire();
+        }
+        ctx.set("inflight", count + 1);
+      }
+    ),
+    release: restate.createObjectHandler(
+      async (ctx: restate.ObjectContext) => {
+        const count = (await ctx.get<number>("inflight")) ?? 0;
+        ctx.set("inflight", Math.max(0, count - 1));
+      }
+    ),
+  },
+});
+```
+
+- Virtual object = **single writer per key** — no race conditions
+- Durable sleep for back-pressure — callers wait, never dropped
 
 ---
 
@@ -561,15 +800,37 @@ No saga patterns. No dead letter queues. No manual recovery scripts.
 layout: center
 ---
 
-# See the Full Talk at DevNexus!
+# Thank You!
 
 **Durable Execution: Building Apps That Refuse to Die**
 
-March 14 in Atlanta
+<div class="flex justify-center items-center gap-12 mt-8">
 
-[Session link](https://devnexus.com) | [Schedule](https://devnexus.com/schedule)
+<div class="text-center">
+<img src="https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=https://devnexus.com" class="w-40 h-40 mx-auto" />
+<div class="text-sm mt-2 opacity-60">Session link</div>
+</div>
 
-Sam Dengler — [@samdengler](https://twitter.com/samdengler)
+<div class="text-left space-y-4">
+
+<div class="flex items-center gap-2">
+<carbon-logo-github class="text-xl" />
+<a href="https://github.com/samdengler/durable-execution">samdengler/durable-execution</a>
+</div>
+
+<div class="flex items-center gap-2">
+<carbon-link class="text-xl" />
+<a href="https://restate.dev">restate.dev</a>
+</div>
+
+<div class="flex items-center gap-2">
+<carbon-user-avatar class="text-xl" />
+Sam Dengler — <a href="https://twitter.com/samdengler">@samdengler</a>
+</div>
+
+</div>
+
+</div>
 
 ---
 
