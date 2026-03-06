@@ -222,11 +222,13 @@ restate deployments register http://localhost:9080
 
 <!--
 **Before the talk:**
-1. Run `./bin/demo.sh` to start tmux with all panes
-2. The script starts Restate server (top-left) and service (top-right)
-3. Use the bottom pane for commands
-4. Register: `restate deployments register http://localhost:9080`
-5. Verify: open Restate UI at http://localhost:9070/ — Greeter service should appear
+1. Run `./bin/demo.sh` to start tmux session "devnexus"
+2. Window 0 (Demo): code viewer (top pane) + command pane (bottom)
+3. Window 1 (Services): restate-server (top pane) + npm run dev service logs (bottom)
+4. Restate UI opens automatically in cmux browser at http://localhost:9070/
+5. Switch to command pane (Window 0, bottom) and register:
+   `restate deployments register http://localhost:9080`
+6. Verify: Greeter service should appear in the Restate UI
 -->
 
 ---
@@ -238,7 +240,7 @@ restate deployments register http://localhost:9080
 Enable failure mode:
 
 ```bash
-touch demos/01-durable-execution/FAIL_DEMO
+touch FAIL_DEMO
 ```
 
 Invoke the greeter (async):
@@ -318,7 +320,7 @@ Every invocation gets its own append-only journal
 Remove the failure flag:
 
 ```bash
-rm demos/01-durable-execution/FAIL_DEMO
+rm FAIL_DEMO
 ```
 
 Check invocation status:
@@ -381,48 +383,6 @@ Invocation complete — all entries durably persisted
 | 2 | **Run** | `Notification` | `{ status: "sent" }` |
 | 3 | **Run** | `Reminder` | `{ status: "sent" }` |
 | 4 | **Output** | | `{ result: "You said hi to DevNexus!" }` |
-
----
-
-# Demo: Live
-
-<div></div>
-
-Register the service with Restate:
-
-```bash
-restate deployments register http://localhost:9080
-```
-
-Invoke the greeter (async):
-
-```bash
-http POST localhost:8080/Greeter/greet/send name=DevNexus
-```
-
-Check invocation status:
-
-```bash
-http localhost:8080/restate/invocation/INVOCATION_ID/output
-```
-
-Invoke with failure simulation:
-
-```bash
-http POST localhost:8080/Greeter/greet/send name=Alice
-```
-
-<!--
-**Setup:** run `./bin/demo.sh` before talk
-
-**Restate UI walkthrough:**
-
-1. Open http://localhost:9070/
-2. After registering, show the **Services** tab — Greeter service appears
-3. After invoking DevNexus, show **Invocations** — completed successfully
-4. After invoking Alice, show **Invocations** — watch retries in real-time
-5. Click into the Alice invocation to show journal entries and retry attempts
--->
 
 ---
 

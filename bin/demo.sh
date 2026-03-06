@@ -5,10 +5,16 @@ SESSION="devnexus"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
 # Gracefully stop existing session if present
+tmux send-keys -t "$SESSION:1.0" C-c 2>/dev/null || true
+tmux send-keys -t "$SESSION:1.1" C-c 2>/dev/null || true
 tmux send-keys -t "$SESSION:0.0" C-c 2>/dev/null || true
 tmux send-keys -t "$SESSION:0.1" C-c 2>/dev/null || true
-sleep 1
+sleep 2
 tmux kill-session -t "$SESSION" 2>/dev/null || true
+# Kill any leftover processes on restate ports
+lsof -ti :8080 | xargs kill 2>/dev/null || true
+lsof -ti :9080 | xargs kill 2>/dev/null || true
+lsof -ti :9070 | xargs kill 2>/dev/null || true
 
 # Layout:
 #   Window 0 (Demo):        Window 1 (Services):
@@ -18,16 +24,17 @@ tmux kill-session -t "$SESSION" 2>/dev/null || true
 #   │     commands       │  │   service logs      │
 #   └────────────────────┘  └────────────────────┘
 
-tmux new-session -d -s "$SESSION" -x 200 -y 50
+tmux new-session -d -s "$SESSION" -x 106 -y 50
 
 # Window 0: Demo - code (top) + commands (bottom)
-tmux split-window -v -p 20 -t "$SESSION:0.0"
+tmux split-window -v -p 33 -t "$SESSION:0.0"
 
 # Top (pane 0): Code viewer
-tmux send-keys -t "$SESSION:0.0" "cd $ROOT/demos/01-durable-execution && bat --terminal-width=110 src/app.ts" Enter
+tmux send-keys -t "$SESSION:0.0" "export BAT_OPTS='--terminal-width=106' && cd $ROOT/demos/01-durable-execution && bat src/app.ts" Enter
 
-# Bottom (pane 1): Command pane
-tmux send-keys -t "$SESSION:0.1" "cd $ROOT/demos/01-durable-execution" Enter
+# Bottom (pane 1): Command pane (short prompt for demo readability)
+tmux send-keys -t "$SESSION:0.1" "export PS1='%% ' && cd $ROOT/demos/01-durable-execution && clear" Enter
+tmux send-keys -t "$SESSION:0.1" "restate deployments register http://localhost:9080"
 
 # Window 1: Services (hidden) - restate server + service
 tmux new-window -t "$SESSION:1" -n "Services"
