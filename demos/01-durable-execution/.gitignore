@@ -1,2 +1,5 @@
 node_modules/
 dist/
+restate-data/
+replay-log.txt
+FAIL_DEMO
