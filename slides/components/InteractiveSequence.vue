@@ -46,24 +46,44 @@ function estimateWidth(label, minWidth) {
   return Math.max(minWidth || MIN_BOX_W, label.length * CHAR_W + BOX_PAD_X * 2)
 }
 
-onMounted(async () => {
-  await nextTick()
+function measureWidths() {
   const widths = []
+  let allValid = true
   for (let i = 0; i < props.actors.length; i++) {
+    const est = estimateWidth(props.actors[i].label, props.actors[i].minWidth)
     const el = actorTextRefs.value[i]
     if (el) {
       try {
         const bbox = el.getBBox()
-        widths.push(Math.max(props.actors[i].minWidth || MIN_BOX_W, bbox.width + BOX_PAD_X * 2))
+        // getBBox returns 0 when element isn't rendered yet
+        if (bbox.width > 0) {
+          widths.push(Math.max(props.actors[i].minWidth || MIN_BOX_W, bbox.width + BOX_PAD_X * 2))
+        } else {
+          widths.push(est)
+          allValid = false
+        }
       } catch {
-        widths.push(estimateWidth(props.actors[i].label, props.actors[i].minWidth))
+        widths.push(est)
+        allValid = false
       }
     } else {
-      widths.push(estimateWidth(props.actors[i].label, props.actors[i].minWidth))
+      widths.push(est)
+      allValid = false
     }
   }
   actorWidths.value = widths
   measured.value = true
+  return allValid
+}
+
+onMounted(async () => {
+  await nextTick()
+  if (!measureWidths()) {
+    // Retry after a frame if getBBox returned 0
+    requestAnimationFrame(() => {
+      nextTick().then(() => measureWidths())
+    })
+  }
 })
 
 // Use estimated widths until measured

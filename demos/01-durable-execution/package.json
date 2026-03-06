@@ -6,7 +6,8 @@
   "scripts": {
     "build": "tsc --noEmitOnError",
     "start": "node ./dist/app.js",
-    "dev": "tsx watch ./src/app.ts"
+    "dev": "tsx watch ./src/app.ts",
+    "restate:cleanup": "restate invocations cancel Greeter --yes 2>/dev/null ; restate invocations purge Greeter --yes 2>/dev/null ; echo 'Restate cleanup done.'"
   },
   "dependencies": {
     "@restatedev/restate-sdk": "^1.10.2",

@@ -68,6 +68,8 @@ tmux bind-key -T prefix x confirm-before -p "kill-session? (y/n)" \
   "send-keys -t ${SESSION}:1.0 C-c ; send-keys -t ${SESSION}:1.1 C-c ; run-shell 'sleep 1' ; kill-session"
 tmux set-option -g display-panes-time 5000
 tmux set-option -t "$SESSION" -g mouse on
+tmux bind-key -T copy-mode MouseDragEnd1Pane send-keys -X copy-pipe "pbcopy"
+tmux bind-key -T copy-mode-vi MouseDragEnd1Pane send-keys -X copy-pipe "pbcopy"
 tmux set-option -t "$SESSION" message-style "fg=yellow,bg=#1e293b,bold"
 tmux set-option -t "$SESSION" status-style "fg=yellow,bg=#1e293b"
 

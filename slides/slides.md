@@ -32,7 +32,7 @@ DevNexus 2026
 **Sam Dengler**
 <br>Sr Principal Engineer, JPMorganChase
 
-AI engineering, event-driven architectures, distributed systems, AWS, serverless
+Agentic engineering, event-driven architectures, distributed systems, AWS, serverless
 
 @samdengler
 <br>[Twitter](https://twitter.com/samdengler) / [LinkedIn](https://linkedin.com/in/samdengler) / [GitHub](https://github.com/samdengler)
@@ -53,6 +53,16 @@ Building distributed applications is hard
 
 **We spend more time on plumbing than business logic.**
 
+<div class="flex items-center justify-center gap-0 mt-8">
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Service A</div>
+<div class="shrink-0 relative" style="width:300px">
+  <span class="text-xs absolute w-full text-center" style="color:#f87171;font-weight:500;top:-14px">retries? timeouts? idempotency? ordering?</span>
+  <svg width="300" height="24" style="display:block"><line x1="0" y1="12" x2="292" y2="12" stroke="#38bdf8" stroke-width="1.5" /><polygon points="292,12 286,9 286,15" fill="#38bdf8" /></svg>
+  <span class="text-xs absolute w-full text-center" style="color:#f87171;font-weight:500;bottom:-14px">state? recovery? compensation? dead letters?</span>
+</div>
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Service B</div>
+</div>
+
 ---
 
 # What is Durable Execution?
@@ -63,10 +73,13 @@ Persist execution progress. Resume seamlessly after crashes.
 - The runtime journals each step as it completes
 - On failure, replay from the journal — skip completed steps
 - You focus on **business logic**, not infrastructure
+- Growing ecosystem: [Temporal](https://temporal.io), [Restate](https://restate.dev), [Azure Durable Functions](https://learn.microsoft.com/azure/azure-functions/durable/), [AWS Lambda Durable Functions](https://aws.amazon.com/blogs/compute/introducing-aws-lambda-durable-functions/), [Inngest](https://inngest.com), [DBOS](https://dbos.dev), [Vercel Workflow SDK](https://vercel.com/docs/workflow-sdk), [Cloudflare Workflows](https://developers.cloudflare.com/workflows/)
 
 ---
 
 # Meet Restate
+
+<img src="/logos/restate.png" class="w-16 float-right mt-[-1rem]" />
 
 A lightweight runtime for durable execution
 
@@ -74,6 +87,7 @@ A lightweight runtime for durable execution
 - **Journaling** — every side effect is recorded and replayed on retry
 - **Virtual objects** — stateful entities with built-in K/V state
 - **Workflows** — long-running operations with signals and timers
+- Built by the creators of **Apache Flink** — bringing stream processing reliability to application backends
 
 ---
 clicks: 2
@@ -405,7 +419,7 @@ Invocation complete — all entries durably persisted
 
 Logs inside and outside `ctx.run()` behave differently on replay
 
-```ts {all|2,8|4-7}
+```ts {all|2|4-7|9-12}
 async (ctx: restate.Context, { name }) => {
   log(`Handler started for ${name}`);          // runs EVERY time
 
@@ -479,9 +493,9 @@ Your handler talks to a **leader node**, which replicates to the cluster
 Restate uses Raft consensus for automatic failover
 
 - The cluster **detects** the failed node via health checks
-- The old leader is **sealed** and a new leader is elected
-- The new leader **promotes** a follower and rebuilds state from the journal
-- Your handler **reconnects** seamlessly
+- The old leader is **sealed** (inspired by Meta's [Delos](https://research.facebook.com/publications/delos-distributed-log-based-consensus-for-replicated-state-machines/))
+- A new leader is elected via **Raft** consensus
+- The new leader rebuilds state from the journal — your handler **reconnects** seamlessly
 
 ---
 clicks: 9
@@ -511,133 +525,124 @@ clicks: 9
 
 ---
 
-# The Three Guarantees
-
-What Restate promises about resilience
-
-<div class="grid grid-cols-3 gap-6 mt-8">
-
-<div class="p-4 border rounded text-center">
-
-### No Lost Work
-
-Every committed step is stored on multiple nodes. A single node failure **cannot lose data**.
-
-</div>
-
-<div class="p-4 border rounded text-center">
-
-### No Double Execution
-
-On recovery, completed steps are **replayed from the journal**, not re-executed. Side effects don't repeat.
-
-</div>
-
-<div class="p-4 border rounded text-center">
-
-### Fast Failover
-
-A standby node can take over in **seconds**, not minutes. Your in-flight invocations resume automatically.
-
-</div>
-
-</div>
-
----
-
 # Virtual Objects
 
 Stateful entities with a single writer — like an actor with durable K/V state
 
-```ts
-const counter = restate.object({
-  name: "Counter",
-  handlers: {
-    add: restate.createObjectHandler(
-      async (ctx: restate.ObjectContext, value: number) => {
-        const current = (await ctx.get<number>("count")) ?? 0;
-        ctx.set("count", current + value);
-        return current + value;
-      }
-    ),
-    // Signal handler — receives events, runs with exclusive access
-    notify: restate.createObjectHandler(
-      async (ctx: restate.ObjectContext, event: string) => {
-        const log = (await ctx.get<string[]>("events")) ?? [];
-        log.push(event);
-        ctx.set("events", log);
-      }
-    ),
+```ts {all|3-7|9-14}
+const counter = restate.object({ name: "Counter", handlers: {
+
+  add: async (ctx: restate.ObjectContext, value: number) => {
+    const current = (await ctx.get<number>("count")) ?? 0;
+    ctx.set("count", current + value);
+    return current + value;
   },
-});
+
+  // Signal handler — receives events, runs with exclusive access
+  notify: async (ctx: restate.ObjectContext, event: string) => {
+    const log = (await ctx.get<string[]>("events")) ?? [];
+    log.push(event);
+    ctx.set("events", log);
+  },
+}});
 ```
 
 - Keyed by ID — `POST /Counter/my-counter/add`
 - **Exclusive access** per key — no races, no locks
+- Built-in K/V state via `ctx.get()` / `ctx.set()`
 
 ---
 
 # Workflows
 
-Long-running operations with durable promises, signals, and timers
+Like our Greeter handler, but with **durable promises** and **signal handlers**
 
-```ts
-const checkout = restate.workflow({
-  name: "Checkout",
-  handlers: {
-    run: restate.createWorkflowHandler(
-      async (ctx: restate.WorkflowContext, order: Order) => {
-        await ctx.run("reserve", () => reserveInventory(order));
+```ts {all|3-8|10-13}
+const checkout = restate.workflow({ name: "Checkout", handlers: {
 
-        // Wait for external signal (e.g. payment confirmation)
-        const payment = await ctx.promise<Payment>("payment");
-
-        await ctx.run("fulfill", () => fulfillOrder(order, payment));
-        return { status: "completed" };
-      }
-    ),
-    // Signal handler — called externally to unblock the workflow
-    confirmPayment: restate.createWorkflowHandler(
-      async (ctx: restate.SharedWorkflowContext, payment: Payment) => {
-        ctx.promise<Payment>("payment").resolve(payment);
-      }
-    ),
+  run: async (ctx: restate.WorkflowContext, order: Order) => {
+    await ctx.run("reserve", () => reserveInventory(order));
+    const payment = await ctx.promise<Payment>("payment"); // wait for signal
+    await ctx.run("fulfill", () => fulfillOrder(order, payment));
+    return { status: "completed" };
   },
-});
+
+  // Signal handler — called externally to unblock the workflow
+  confirmPayment: async (ctx: restate.SharedWorkflowContext, payment: Payment) => {
+    ctx.promise<Payment>("payment").resolve(payment);
+  },
+}});
 ```
 
+- **What's new vs Greeter?** `ctx.promise()` suspends until signaled — no polling
 - Each workflow run has a **durable ID** — at-most-once execution
-- `ctx.promise()` — durable, survives crashes and restarts
+- Signal handlers can unblock waiting workflows from any source
 
 ---
 
-# Kafka Stream Processing
+# Orchestrating Microservices
 
-Trigger handlers from Kafka topics to continue workflows
+Integrate with your existing services and infrastructure
 
 ```ts
-// Restate subscribes to Kafka and invokes your handler per message
+async (ctx: restate.Context, order: Order) => {
+  // Call any HTTP API — each ctx.run() is journaled and retried
+  const inventory = await ctx.run("check inventory",
+    () => fetch("https://inventory-svc/check", { method: "POST", body: order }));
+
+  const payment = await ctx.run("charge payment",
+    () => fetch("https://payments-svc/charge", { method: "POST", body: order }));
+
+  const shipment = await ctx.run("create shipment",
+    () => fetch("https://shipping-svc/ship", { method: "POST", body: order }));
+
+  return { inventory, payment, shipment };
+}
+```
+
+- Downstream services are **plain HTTP APIs** — no SDK needed
+- Each `ctx.run()` retries on failure with the same idempotency key
+- Restate is the **orchestrator**, not a runtime for every service
+
+---
+
+# Event-Driven Architectures
+
+Process Kafka events as durable invocations
+
+```ts
 const events = restate.service({
   name: "EventProcessor",
   handlers: {
-    process: restate.createServiceHandler(
-      async (ctx: restate.Context, event: PaymentEvent) => {
-        // Forward to the waiting workflow
-        ctx.workflowClient(checkout, event.orderId)
-          .confirmPayment(event);
-      }
-    ),
+    process: async (ctx: restate.Context, event: PaymentEvent) => {
+      ctx.workflowClient(checkout, event.orderId)
+        .confirmPayment(event);
+    },
   },
 });
 ```
 
 ```bash
-# Register Kafka subscription with Restate
+# Subscribe: topic → EventProcessor/process handler
 restate subscriptions create kafka-topic EventProcessor/process
 ```
 
-- Restate manages offsets — exactly-once processing
+- Restate manages offsets — exactly-once processing (or bring your own consumer)
 - Each message becomes a **durable invocation**
+
+<div class="flex items-center justify-center gap-0 mt-4">
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Kafka Topic</div>
+<div class="shrink-0 relative" style="width:140px">
+  <span class="text-xs absolute w-full text-center" style="color:#38bdf8;font-weight:500;top:-14px">subscribe</span>
+  <svg width="140" height="24" style="display:block"><line x1="0" y1="12" x2="132" y2="12" stroke="#38bdf8" stroke-width="1.5" /><polygon points="132,12 126,9 126,15" fill="#38bdf8" /></svg>
+</div>
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Restate</div>
+<div class="shrink-0 relative" style="width:140px">
+  <span class="text-xs absolute w-full text-center" style="color:#38bdf8;font-weight:500;top:-14px">invoke</span>
+  <svg width="140" height="24" style="display:block"><line x1="0" y1="12" x2="132" y2="12" stroke="#38bdf8" stroke-width="1.5" /><polygon points="132,12 126,9 126,15" fill="#38bdf8" /></svg>
+</div>
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">EventProcessor</div>
+</div>
 
 ---
 
@@ -645,25 +650,22 @@ restate subscriptions create kafka-topic EventProcessor/process
 
 Compensating actions on failure — no framework needed
 
-```ts
+```ts {all|4-5,7-8|10-11,16|10-15}
 async (ctx: restate.Context, booking: Booking) => {
-  const flight = await ctx.run("book flight",
-    () => bookFlight(booking));
+  const compensations: (() => Promise<void>)[] = [];
 
-  const hotel = await ctx.run("book hotel",
-    () => bookHotel(booking));
+  const flight = await ctx.run("book flight", () => bookFlight(booking));
+  compensations.push(() => ctx.run("cancel flight", () => cancelFlight(flight)));
 
-  const car = await ctx.run("rent car", async () => {
-    try {
-      return await rentCar(booking);
-    } catch (e) {
-      // Compensate previous steps
-      await ctx.run("cancel hotel", () => cancelHotel(hotel));
-      await ctx.run("cancel flight", () => cancelFlight(flight));
-      throw e;
-    }
-  });
+  const hotel = await ctx.run("book hotel", () => bookHotel(booking));
+  compensations.push(() => ctx.run("cancel hotel", () => cancelHotel(hotel)));
 
+  try {
+    const car = await ctx.run("rent car", () => rentCar(booking));
+  } catch (e) {
+    for (const undo of compensations.reverse()) await undo();
+    throw e;
+  }
   return { flight, hotel, car };
 }
 ```
@@ -728,65 +730,152 @@ async (ctx: restate.Context, urls: string[]) => {
 
 # Durable Webhooks
 
-Register a callback that survives crashes
+Any handler can be a webhook processor — just point your webhook at Restate
 
-```ts
-async (ctx: restate.Context, order: Order) => {
-  await ctx.run("submit", () => submitToVendor(order));
-
-  // Durable promise — waits for webhook callback
-  const result = await ctx.promise<WebhookPayload>("callback");
-
-  await ctx.run("process", () => processResult(order, result));
-  return result;
+```ts {all|3-7|10}
+// Webhook router — receives events, routes to the right processor
+onStripeEvent: async (ctx: restate.Context, event: StripeEvent) => {
+  if (event.type === "invoice.payment_failed") {
+    ctx.objectSendClient(PaymentTracker, event.data.object.id)
+      .onPaymentFailed(event);
+  } else if (event.type === "invoice.payment_succeeded") {
+    ctx.objectSendClient(PaymentTracker, event.data.object.id)
+      .onPaymentSuccess(event);
+  }
 }
 ```
 
-```ts
-// Webhook endpoint — resolves the waiting promise
-webhookReceived: restate.createServiceHandler(
-  async (ctx: restate.Context, payload: WebhookPayload) => {
-    ctx.promise<WebhookPayload>("callback").resolve(payload);
-  }
-),
+```
+POST restate:8080/WebhookRouter/onStripeEvent
 ```
 
-- The handler **suspends** — no threads, no polling
-- Webhook can arrive minutes, hours, or days later
+- `objectSendClient()` — durable one-way message, guaranteed delivery
+- Each event becomes a **durable invocation** — no lost webhooks
+- Virtual object keyed by ID — events for the same entity are serialized
 
 ---
 
-# Rate Limiting
+# Process Control
 
-Control concurrency with virtual objects
+Manage invocations at runtime — pause, resume, cancel, restart
 
-```ts
-const rateLimiter = restate.object({
-  name: "RateLimiter",
-  handlers: {
-    acquire: restate.createObjectHandler(
-      async (ctx: restate.ObjectContext) => {
-        const count = (await ctx.get<number>("inflight")) ?? 0;
-        if (count >= 10) {
-          // Durable sleep — back-pressure without dropping
-          await ctx.sleep(1_000);
-          return ctx.objectClient(RateLimiter, ctx.key).acquire();
-        }
-        ctx.set("inflight", count + 1);
-      }
-    ),
-    release: restate.createObjectHandler(
-      async (ctx: restate.ObjectContext) => {
-        const count = (await ctx.get<number>("inflight")) ?? 0;
-        ctx.set("inflight", Math.max(0, count - 1));
-      }
-    ),
-  },
-});
+<div class="grid grid-cols-2 gap-6 mt-6">
+<div>
+
+**CLI**
+```bash
+# Pause a running invocation
+restate invocations cancel inv_1abc..
+
+# Resume / restart as new
+restate invocations purge inv_1abc..
+
+# Cancel all for a handler
+restate invocations cancel Greeter/greet
 ```
 
-- Virtual object = **single writer per key** — no race conditions
-- Durable sleep for back-pressure — callers wait, never dropped
+</div>
+<div>
+
+**Programmatic**
+```ts
+// Cancel from code
+ctx.serviceSendClient(Greeter)
+  .greet({ name }, restate.rpc.opts({ cancel: true }));
+```
+
+**Admin API**
+```bash
+# Pause / resume via HTTP
+curl -X POST localhost:9070/invocations/inv_.../cancel
+```
+
+</div>
+</div>
+
+- Full **observability** — list, inspect, and filter invocations
+- **Idempotency keys** — safely retry from the client side
+
+---
+
+# Deployment Topologies
+
+Run Restate your way — from a single binary to a production cluster
+
+<div class="flex items-center justify-center gap-16 mt-6">
+<div class="text-center">
+
+**Single Server**
+
+<div class="flex flex-col items-center gap-2">
+<div class="px-6 py-3 border border-yellow-400 rounded text-sm" style="background:#1e293b">Restate Server</div>
+</div>
+
+<div class="text-xs mt-2 text-slate-400">Dev, testing, small workloads</div>
+
+</div>
+<div class="text-center">
+
+**Clustered**
+
+<div class="flex flex-col items-center gap-2">
+<div class="flex gap-2">
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Node 1</div>
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Node 2</div>
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Node 3</div>
+</div>
+</div>
+
+<div class="text-xs mt-2 text-slate-400">HA with Raft consensus</div>
+
+</div>
+<div class="text-center">
+
+**Disaggregated**
+
+<div class="flex flex-col items-center gap-2">
+<div class="flex gap-1">
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Meta</div>
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Workers</div>
+<div class="px-3 py-2 border border-yellow-400 rounded text-xs" style="background:#1e293b">Log</div>
+</div>
+</div>
+
+<div class="text-xs mt-2 text-slate-400">Scale components independently</div>
+
+</div>
+</div>
+
+<div class="mt-8">
+
+- **Disaggregated** — separate meta, workers, and log nodes; scale each tier independently
+- **Kubernetes operator** — first-class K8s support for platform teams
+- **Restate Cloud** available as a fully managed service
+
+</div>
+
+---
+
+# Handler Execution
+
+Handlers are just HTTP endpoints — deploy and scale them however you want
+
+<div class="flex items-center justify-center gap-0 mt-8">
+<div class="px-4 py-2 border border-yellow-400 rounded text-sm" style="background:#1e293b">Restate</div>
+<div class="shrink-0 relative" style="width:160px">
+  <span class="text-xs absolute w-full text-center" style="color:#38bdf8;font-weight:500;top:-14px">discovers & invokes</span>
+  <svg width="160" height="24" style="display:block"><line x1="0" y1="12" x2="152" y2="12" stroke="#38bdf8" stroke-width="1.5" /><polygon points="152,12 146,9 146,15" fill="#38bdf8" /></svg>
+</div>
+<div class="flex flex-col gap-2">
+<div class="px-3 py-1 border border-slate-500 rounded text-xs" style="background:#1e293b">Containers / VMs</div>
+<div class="px-3 py-1 border border-slate-500 rounded text-xs" style="background:#1e293b">AWS Lambda / Cloud Functions</div>
+<div class="px-3 py-1 border border-slate-500 rounded text-xs" style="background:#1e293b">Bare metal</div>
+</div>
+</div>
+
+- **Register** deployments via CLI or API — Restate auto-discovers handlers
+- **Versioning** — register new deployments; in-flight invocations finish on the old version
+- **Scaling** — add handler replicas freely; Restate load-balances across them
 
 ---
 
@@ -831,6 +920,70 @@ Sam Dengler — <a href="https://twitter.com/samdengler">@samdengler</a>
 </div>
 
 </div>
+
+---
+
+# Appendix: Rate Limiting
+
+Control concurrency with virtual objects
+
+```ts
+const rateLimiter = restate.object({ name: "RateLimiter", handlers: {
+
+  acquire: async (ctx: restate.ObjectContext) => {
+    const count = (await ctx.get<number>("inflight")) ?? 0;
+    if (count >= 10) {
+      await ctx.sleep(1_000); // durable back-pressure
+      return ctx.objectClient(RateLimiter, ctx.key).acquire();
+    }
+    ctx.set("inflight", count + 1);
+  },
+
+  release: async (ctx: restate.ObjectContext) => {
+    const count = (await ctx.get<number>("inflight")) ?? 0;
+    ctx.set("inflight", Math.max(0, count - 1));
+  },
+}});
+```
+
+- Virtual object = **single writer per key** — no race conditions
+- Durable sleep for back-pressure — callers wait, never dropped
+
+---
+
+# Appendix: Saga Pattern — How It Works
+
+Push compensations onto a stack, pop to rewind on failure
+
+<div class="grid grid-cols-2 gap-8 mt-4">
+<div>
+
+**Happy path**
+```
+1. bookFlight()    → push cancelFlight
+2. bookHotel()     → push cancelHotel
+3. rentCar()       → success!
+   return { flight, hotel, car }
+```
+
+</div>
+<div>
+
+**Failure at step 3**
+```
+1. bookFlight()    → push cancelFlight  ✓
+2. bookHotel()     → push cancelHotel   ✓
+3. rentCar()       → throws!
+   ↓ unwind stack:
+   cancelHotel()                        ✓
+   cancelFlight()                       ✓
+```
+
+</div>
+</div>
+
+- Compensations run in **reverse order** — last booked, first cancelled
+- Each `ctx.run()` is journaled — safe across crashes and retries
 
 ---
 
