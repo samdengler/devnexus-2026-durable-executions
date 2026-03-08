@@ -387,7 +387,7 @@ Every invocation gets its own append-only journal
 | 1 | **Run** | `uuidv4` | `"a1b2c3d4-..."` |
 | 2 | **Run** | `Notification` | `{ status: "sent" }` |
 
-<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1"><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying">The Log: What Every Software Engineer Should Know (Kreps, 2013)</a><a href="https://restate.dev/blog/replicated-loglet/">Bifrost: Restate's Replicated Log (Rohrmann, 2024)</a></div>
+<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1 items-end"><a href="https://engineering.linkedin.com/distributed-systems/log-what-every-software-engineer-should-know-about-real-time-datas-unifying">The Log: What Every Software Engineer Should Know (Kreps, 2013)</a><a href="https://restate.dev/blog/replicated-loglet/">Bifrost: Restate's Replicated Log (Rohrmann, 2024)</a></div>
 
 ---
 
@@ -514,7 +514,7 @@ Every `ctx.run()` is replicated before your code moves on
 
 </div>
 
-<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1"><a href="https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf">Consistency Tradeoffs in Modern Distributed Database System Design (Abadi, 2012)</a><a href="https://arxiv.org/pdf/2109.07771">Quantifying and Generalizing the CAP Theorem (Sharov et al., 2021)</a></div>
+<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1 items-end"><a href="https://www.cs.umd.edu/~abadi/papers/abadi-pacelc.pdf">Consistency Tradeoffs in Modern Distributed Database System Design (Abadi, 2012)</a><a href="https://arxiv.org/pdf/2109.07771">Quantifying and Generalizing the CAP Theorem (Sharov et al., 2021)</a></div>
 
 ---
 clicks: 6
@@ -551,7 +551,7 @@ Restate uses Raft consensus for automatic failover
 - The old leader is **sealed** and a new leader is elected via **Raft** consensus
 - The new leader rebuilds state from the journal — your handler **reconnects** seamlessly
 
-<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1"><a href="https://raft.github.io/raft.pdf">In Search of an Understandable Consensus Algorithm (Ongaro & Ousterhout, 2014)</a><a href="https://research.facebook.com/publications/delos-distributed-log-based-consensus-for-replicated-state-machines/">Delos: Distributed Log-based Consensus (Balakrishnan et al., 2020)</a></div>
+<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right flex flex-col gap-1 items-end"><a href="https://raft.github.io/raft.pdf">In Search of an Understandable Consensus Algorithm (Ongaro & Ousterhout, 2014)</a><a href="https://research.facebook.com/publications/delos-distributed-log-based-consensus-for-replicated-state-machines/">Delos: Distributed Log-based Consensus (Balakrishnan et al., 2020)</a></div>
 
 ---
 clicks: 9
