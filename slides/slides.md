@@ -607,6 +607,8 @@ const counter = restate.object({ name: "Counter", handlers: {
 - **Exclusive access** per key — no races, no locks
 - Built-in K/V state via `ctx.get()` / `ctx.set()`
 
+<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right"><a href="https://docs.restate.dev/foundations/services">docs.restate.dev/foundations/services</a></div>
+
 ---
 
 # Workflows
@@ -633,6 +635,8 @@ const checkout = restate.workflow({ name: "Checkout", handlers: {
 - **What's new vs Greeter?** `ctx.promise()` suspends until signaled — no polling
 - Each workflow run has a **durable ID** — at-most-once execution
 - Signal handlers can unblock waiting workflows from any source
+
+<div class="absolute bottom-6 right-12 text-xs text-sky-400 text-right"><a href="https://docs.restate.dev/develop/ts/workflows/">docs.restate.dev/develop/ts/workflows</a></div>
 
 ---
 
